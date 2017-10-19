@@ -3,5 +3,5 @@ project(ISA)
 
 set(CMAKE_CXX_STANDARD 11)
 
-set(SOURCE_FILES main.cpp lib/auth.cpp lib/base.cpp lib/base.h lib/auth.h)
+set(SOURCE_FILES main.cpp)
 add_executable(ISA ${SOURCE_FILES})
