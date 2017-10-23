@@ -24,6 +24,8 @@
 #include <fstream>
 
 
+#include "lib/md5/md5.cpp"
+
 using namespace std;
 
 
@@ -35,6 +37,7 @@ int port = 0;
 bool isHashed = true;
 string user = "";
 string pass = "";
+int status;
 
 
 /*
@@ -43,7 +46,7 @@ string pass = "";
  * @param const char *message message to be printed to cerr
  */
 void throwException(const char *message) {
-	cerr << (message) << endl;
+	cerr << message << endl;
 	exit(EXIT_FAILURE);
 }
 
@@ -183,6 +186,66 @@ int getOperation(string message, bool isHashed) {
 		return 0;
 	}
 }
+
+string generatePidTimeStamp(){
+	int pid = getpid();
+	
+	ostringstream pidNum;
+	pidNum << pid;
+	string pidStr = pidNum.str();
+	
+	
+	char hostname[512];
+	hostname[511] = '\0';
+	gethostname(hostname,512);
+	struct hostent *host;
+	host = gethostbyname(hostname);
+	
+	time_t currTime = time(NULL);
+	
+	return ("<"+pidStr+"."+to_string(currTime)+"@"+host->h_name);
+	
+}
+
+void sendResponse(int socket, bool error, string message) {
+	
+
+	string response;
+	if (error) {
+		response = "+OK";
+	} else {
+		response = "-ERR";
+		
+	}
+	
+	response = response+" "+message+"\r\n";
+	
+	send(socket, response.c_str(), response.size(), 0);
+}
+
+void *clientThread(void *threadParam, socket) {
+	
+	int received;
+	auto *tParam = (threadParams *) threadParam;
+	
+	sendResponse(tParam->socket, , 5);
+	for (;;) {
+		if ((received = recv(threadParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
+			break;
+		} else {
+			int op = 0;
+			op = getOperation(receivedMessage, isHashed);
+			
+			if (isHashed) {
+			
+			} else {
+			
+			}
+			
+			
+			// wait for client
+		}
+}
 	
 	int main(int argc, char *argv[]) {
 		
@@ -209,6 +272,8 @@ int getOperation(string message, bool isHashed) {
 		if (!checkUsersFile(usersFile.c_str(), user, pass, isHashed)) {
 			throwException("ERROR: Wrong format of User file.");
 		}
+		
+		cout << generatePidTimeStamp() << endl;
 		
 		cout << serverDir << endl;
 		
@@ -255,23 +320,19 @@ int getOperation(string message, bool isHashed) {
 			
 			if ((commSocket = accept(serverSocket, (struct sockaddr *) &clientaddr, &clientlen)) > 0) {
 				
-				for (;;) {
-					if ((received = recv(commSocket, receivedMessage, 1024, 0)) <= 0) {
-						break;
-					} else {
-						int op = 0;
-						op = getOperation(receivedMessage, isHashed);
-						
-						if (isHashed) {
-						
-						} else {
-						
-						}
-						
-						
-						// wait for client
-					}
-				}
+				pthread_t thread;
+				
+				threadParams *thParam = new threadParams;
+					thParam->aPath = usersFile;
+					thParam->cParam = isHashed;
+					thParam->dirPath = serverDir;
+					thParam->socket = commSocket;
+					thParam->tmpPath = "~/tmpPath/";
+					thParam->pidTimeStamp = generatePidTimeStamp();
+				
+				
+				pthread_create(&thread, NULL, clientThread, thParam);
+				
 			} else {
 				break;
 			}
