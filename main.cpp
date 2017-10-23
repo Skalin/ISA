@@ -287,11 +287,8 @@ void executeMailServer(bool hash, int op, threadStruct *tS) {
 bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHashed) {
 	if (isHashed) {
 		if (op == 1) {
-			tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), " ", false);
-			if (checkUser(tS->clientUser, tS->serverUser)) {
-				tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ",true), "\r\n", true);
-				tS->serverPass = md5(tS->pidTimeStamp+tS->serverPass);
-				if (authenticateUser(tS->clientPass, tS->serverPass)) {
+			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false), tS->serverUser)) {
+				if (authenticateUser(tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ",true), "\r\n", true), tS->serverPass = md5(tS->pidTimeStamp+tS->serverPass))) {
 					sendResponse(tS->commSocket, false, "user authorised\r\n");
 					tS->serverStatus = 1;
 				} else {
@@ -300,8 +297,7 @@ bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHa
 				}
 			}
 		} else if (op == 2) {
-			tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false);
-			if (checkUser(tS->clientUser, tS->serverUser)) {
+			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false), tS->serverUser)) {
 				sendResponse(tS->commSocket, false, "now enter password\r\n");
 
 				if (((int) recv(tS->commSocket, receivedMessage, 1024, 0)) <= 0) {
@@ -309,8 +305,7 @@ bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHa
 				} else {
 					if (getOperation(receivedMessage) == 3) {
 
-						tS->clientPass = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false);
-						if (authenticateUser(tS->clientPass, tS->serverPass)) {
+						if (authenticateUser(tS->clientPass = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false), tS->serverPass)) {
 							sendResponse(tS->commSocket, false, "user authorised\r\n");
 							tS->serverStatus = 1;
 						} else {
@@ -332,10 +327,8 @@ bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHa
 		}
 	} else {
 		if (op == 1) {
-			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), " ", false), tS->serverUser)) {
-				tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ",true), "\r\n", true);
-				tS->serverPass = md5(tS->pidTimeStamp+tS->serverPass);
-				if (authenticateUser(tS->clientPass, tS->serverPass)) {
+			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false), tS->serverUser)) {
+				if (authenticateUser(tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ",true), "\r\n", true), tS->serverPass = md5(tS->pidTimeStamp+tS->serverPass))) {
 					sendResponse(tS->commSocket, false, "user authorised\r\n");
 					tS->serverStatus = 1;
 				} else {
@@ -343,11 +336,9 @@ bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHa
 					return false;
 				}
 			}
-
 		} else {
-			sendResponse(tS->commSocket, true,
+			sendResponse(tS->commSocket, true, "invalid operation\r\n");
 			return false;
-
 		}
 
 	}
