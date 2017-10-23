@@ -7,6 +7,8 @@
 #include <cstring>
 #include <sys/stat.h>
 #include <string>
+#include <mutex>
+#include <dirent.h>
 
 #ifdef _WIN32
 
@@ -28,9 +30,10 @@
 
 using namespace std;
 
+mutex mutexerino;
 
 typedef struct {
-	string serverDir = "";
+	string mailDir = "";
 	string usersFile = "";
 	bool isHashed = true;
 	string clientUser = "";
@@ -40,7 +43,6 @@ typedef struct {
 	int commSocket = -1;
 	string pidTimeStamp = "";
 	string tmpDir;
-	int serverStatus = 0; // unauthorized, 1 = authorized - transaction status, 2 end
 } threadStruct;
 
 
@@ -96,6 +98,8 @@ bool fileExists(const char *fd) {
 }
 
 void printHelp() {
+
+	// TODO napoveda
 	cout << endl << "Developer: Dominik Skala (xskala11)" << endl;
 	cout << "Task name: ISA - POP3 server" << endl;
 	cout << "Subject: ISA (2017/2018)" << endl << endl << endl;
@@ -116,6 +120,9 @@ bool checkParams(int argc) {
 
 bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset, string &usersFile, string &serverDir, int &port) {
 	int c;
+
+	// TODO osetreni argumentu
+
 	while ((c = getopt(argc, argv, ":hcra:p:d:")) != -1) {
 		switch (c) {
 			case 'h':
@@ -223,6 +230,8 @@ int getOperation(string message) {
 		return 2;
 	} else if (returnSubstring(op, " ", false) == "PASS") {
 		return 3;
+	} else if (op == "QUIT") {
+		return 4;
 	} else {
 		return 0;
 	}
@@ -276,68 +285,137 @@ bool authenticateUser(string clientPass, string serverPass) {
 	return (clientPass == serverPass);
 }
 
-void executeMailServer(bool hash, int op, threadStruct *tS) {
 
 
-	authenticateUser(tS->clientPass, tS->serverPass);
+int numberOfFiles(string dir) {
+
+	int sum = 0;
+	DIR *directory;
+	struct dirent *ent;
+
+	if ((directory = opendir(dir.c_str())) != NULL) {
+
+		while ((ent = readdir(directory)) != NULL) {
+			if(string(ent->d_name) == ".." || string(ent->d_name) == ".")
+				continue;
+			sum++;
+		}
+
+		closedir(directory);
+
+	} else {
+		logConsole(true, false, "Error: Number of files from "+dir+" could not be resolved.", true);
+	}
+	return sum;
+
+}
+
+bool moveNewToCur(threadStruct *tS) {
+
+	DIR *dir;
+	struct dirent *ent;
+
+	if ((dir = opendir(tS->mailDir.c_str())) != NULL) {
+		while ((ent = readdir(dir)) != NULL) {
+
+		}
+	}
+
+	return true;
+}
+
+void closeConnection(int socket) {
+	sendResponse(socket, false, "bye");
+	close(socket);
+	mutexerino.unlock();
+	pthread_exit(NULL);
+}
+
+void executeMailServer(threadStruct *tS) {
+
+	if (mutexerino.try_lock()) {
+		sendResponse(tS->commSocket, false, "maildrop locked and ready");
+		int numOfFiles = numberOfFiles(tS->mailDir+"/cur")+numberOfFiles(tS->mailDir+"/new");
+		string stringNumOfFiles = to_string(numOfFiles);
+		sendResponse(tS->commSocket, false, "username's maildrop has "+stringNumOfFiles+" messages (xyz octets)");
+	} else {
+		sendResponse(tS->commSocket, true, "permission denied");
+	}
+
+
+	/* TODO operace na mailech, ziskani obsahu mailu, nahrani do pole a do tmp souboru
+	 * velikost v oktetech = velikost v bytech!!!!
+	 *
+	 *
+	 **/
+
+
+
+
 	return;
 }
 
 
 bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHashed) {
-	if (isHashed) {
+	if (!isHashed) {
 		if (op == 1) {
-			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false), tS->serverUser)) {
-				if (authenticateUser(tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ",true), "\r\n", true), tS->serverPass = md5(tS->pidTimeStamp+tS->serverPass))) {
-					sendResponse(tS->commSocket, false, "user authorised\r\n");
-					tS->serverStatus = 1;
-				} else {
-					sendResponse(tS->commSocket, true, "invalid username or password\r\n");
+			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), " ", false), tS->serverUser)) {
+				if (!authenticateUser(tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ",true), "\r\n", false), tS->serverPass = md5(tS->pidTimeStamp+tS->serverPass))) {
+					sendResponse(tS->commSocket, true, "invalid username or password");
 					return false;
 				}
+			} else {
+				sendResponse(tS->commSocket, true, "invalid username or password");
+				return false;
 			}
 		} else if (op == 2) {
 			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false), tS->serverUser)) {
-				sendResponse(tS->commSocket, false, "now enter password\r\n");
-
+				sendResponse(tS->commSocket, false, "now enter password");
 				if (((int) recv(tS->commSocket, receivedMessage, 1024, 0)) <= 0) {
 					return false;
 				} else {
-					if (getOperation(receivedMessage) == 3) {
+					if ((op = getOperation(receivedMessage)) == 3) {
 
-						if (authenticateUser(tS->clientPass = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false), tS->serverPass)) {
-							sendResponse(tS->commSocket, false, "user authorised\r\n");
-							tS->serverStatus = 1;
-						} else {
-							sendResponse(tS->commSocket, true, "invalid username or password\r\n");
+						if (!authenticateUser(tS->clientPass = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false), tS->serverPass)) {
+							sendResponse(tS->commSocket, true, "invalid username or password");
 							return false;
 						}
+					} else if (op == 4) {
+						closeConnection(tS->commSocket);
+						return false;
 					} else {
-						sendResponse(tS->commSocket, true, "invalid operation\r\n");
+						sendResponse(tS->commSocket, true, "invalid operation");
 						return false;
 					}
 				}
 			} else {
-				sendResponse(tS->commSocket, true, "invalid username or password\r\n");
+				sendResponse(tS->commSocket, true, "invalid username or password");
 				return false;
 			}
+		} else if (op == 4) {
+			closeConnection(tS->commSocket);
+			return false;
 		} else {
-			sendResponse(tS->commSocket, true, "invalid operation\r\n");
+			sendResponse(tS->commSocket, true, "invalid operation");
 			return false;
 		}
 	} else {
 		if (op == 1) {
-			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false), tS->serverUser)) {
-				if (authenticateUser(tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ",true), "\r\n", true), tS->serverPass = md5(tS->pidTimeStamp+tS->serverPass))) {
-					sendResponse(tS->commSocket, false, "user authorised\r\n");
-					tS->serverStatus = 1;
-				} else {
-					sendResponse(tS->commSocket, true, "invalid username or password\r\n");
+			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), " ", false),
+						  tS->serverUser)) {
+				if (!authenticateUser(tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ", true), "\r\n", false),tS->serverPass = md5(tS->pidTimeStamp + tS->serverPass))) {
+					sendResponse(tS->commSocket, true, "invalid username or password");
 					return false;
 				}
+			} else {
+				sendResponse(tS->commSocket, true, "invalid username or password");
+				return false;
 			}
+		} else if (op == 4) {
+			closeConnection(tS->commSocket);
+			return false;
 		} else {
-			sendResponse(tS->commSocket, true, "invalid operation\r\n");
+			sendResponse(tS->commSocket, true, "invalid operation");
 			return false;
 		}
 
@@ -345,12 +423,13 @@ bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHa
 	return true;
 }
 
+
 void *clientThread(void *tS) {
 
 	char receivedMessage[1024];
 	auto *tParam = (threadStruct *) tS;
 
-	sendResponse(tParam->commSocket, false, "POP3 server ready "+tParam->pidTimeStamp+"\r\n");
+	sendResponse(tParam->commSocket, false, "POP3 server ready "+tParam->pidTimeStamp);
 	for (;;) {
 		if (((int) recv(tParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
 			break;
@@ -360,12 +439,14 @@ void *clientThread(void *tS) {
 			if ((op = getOperation(receivedMessage)) != 0) {
 				cout <<  endl << "OP: " << op << endl;
 				if (userIsAuthorised(op, tParam, receivedMessage, tParam->isHashed)) {
-
+					executeMailServer(tParam);
+				} else if (op == 4) {
+					closeConnection(tParam->commSocket);
 				} else {
 					continue;
 				}
 			} else {
-				sendResponse(tParam->commSocket, true, "unknown operation");
+				sendResponse(tParam->commSocket, true, "invalid operation");
 				cout << op << endl;
 				logConsole(true, false, string(receivedMessage), false);
 			}
@@ -381,7 +462,7 @@ int main(int argc, char *argv[]) {
 
 	bool help = false;
 	bool reset = false;
-	string serverDir = "";
+	string mailDir = "";
 	string usersFile = "";
 	string serverUser = "";
 	string serverPass = "";
@@ -389,7 +470,7 @@ int main(int argc, char *argv[]) {
 	bool isHashed = true;
 
 	// params
-	if (!checkParams(argc) || !parseParams(argc, argv, help, isHashed, reset, usersFile, serverDir, port)) {
+	if (!checkParams(argc) || !parseParams(argc, argv, help, isHashed, reset, usersFile, mailDir, port)) {
 		throwException("ERROR: Wrong arguments.");
 	}
 
@@ -401,7 +482,7 @@ int main(int argc, char *argv[]) {
 
 	cout << "HELP VAL: " << help << endl;
 	cout << "RESET VAL: " << reset << endl;
-	cout << "serverDir VAL: " << serverDir << endl;
+	cout << "mailDir VAL: " << mailDir << endl;
 	cout << "usersFile VAL: " << usersFile << endl;
 	cout << "port VAL: " << port << endl;
 	cout << "isHashed VAL: " << isHashed << endl;
@@ -419,7 +500,7 @@ int main(int argc, char *argv[]) {
 
 	cout << generatePidTimeStamp() << endl;
 
-	cout << serverDir << endl;
+	cout << mailDir << endl;
 
 	// we will create and open a socket
 	int serverSocket;
@@ -452,7 +533,7 @@ int main(int argc, char *argv[]) {
 	}
 	printf("DEBUG INFO\n");
 	cout << "Port: " << port << endl;;
-	cout << "Server DIR: " << serverDir << endl;
+	cout << "Server DIR: " << mailDir << endl;
 
 	printf("Server is online! It will be now waiting for request.\n");
 
@@ -464,13 +545,11 @@ int main(int argc, char *argv[]) {
 
 			pthread_t thread;
 
-			tS->usersFile = usersFile;
 			tS->serverUser = serverUser;
 			tS->serverPass = serverPass;
 			tS->isHashed = isHashed;
-			tS->serverDir= serverDir;
+			tS->mailDir= mailDir;
 			tS->commSocket = commSocket;
-			tS->tmpDir = "~/tmpPath/";
 			tS->pidTimeStamp = generatePidTimeStamp();
 
 
