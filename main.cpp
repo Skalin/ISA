@@ -42,7 +42,6 @@ typedef struct {
 	string serverPass = "\0";
 	int commSocket = -1;
 	string pidTimeStamp = "";
-	string tmpDir;
 } threadStruct;
 
 
