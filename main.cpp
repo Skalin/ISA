@@ -29,21 +29,14 @@
 using namespace std;
 
 
-bool help = false;
-bool reset = false;
-string serverDir = "";
-string usersFile = "";
-string serverUser = "";
-string serverPass = "";
-int port = 0;
-bool isHashed = true;
-
 typedef struct {
 	string serverDir = "";
 	string usersFile = "";
 	bool isHashed = true;
 	string clientUser = "";
+	string serverUser = "\0";
 	string clientPass = "";
+	string serverPass = "\0";
 	int commSocket = -1;
 	string pidTimeStamp = "";
 	string tmpDir;
@@ -121,7 +114,7 @@ bool checkParams(int argc) {
 	return true;
 }
 
-bool parseParams(int argc, char *argv[]) {
+bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset, string &usersFile, string &serverDir, int &port) {
 	int c;
 	while ((c = getopt(argc, argv, ":hcra:p:d:")) != -1) {
 		switch (c) {
@@ -224,7 +217,7 @@ int getOperation(string message) {
 
 	string op = returnSubstring(message, "\r\n", false);
 
-	if (op == "QUIT") {
+	if (returnSubstring(op, " ", false) == "APOP") {
 		return 1;
 	} else if (returnSubstring(op, " ", false) == "USER") {
 		return 2;
@@ -265,31 +258,101 @@ void sendResponse(int socket, bool error, string message) {
 		response = "-ERR";
 		
 	}
-	
+
 	response = response+" "+message+"\r\n";
 	
 	send(socket, response.c_str(), response.size(), 0);
 }
 
 
-bool checkUser(threadStruct *tS) {
+bool checkUser(string clientUser, string serverUser) {
 
-	return (tS->clientUser == serverUser ? true : false);
+	return (clientUser == serverUser);
 }
 
 
-bool authenticateUser(threadStruct *tS) {
+bool authenticateUser(string clientPass, string serverPass) {
 
-	return (tS->clientPass == serverPass ? true : false);
+	return (clientPass == serverPass);
 }
 
 void executeMailServer(bool hash, int op, threadStruct *tS) {
 
 
-	authenticateUser(tS);
+	authenticateUser(tS->clientPass, tS->serverPass);
 	return;
 }
 
+
+bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHashed) {
+	if (isHashed) {
+		if (op == 1) {
+			tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), " ", false);
+			if (checkUser(tS->clientUser, tS->serverUser)) {
+				tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ",true), "\r\n", true);
+				tS->serverPass = md5(tS->pidTimeStamp+tS->serverPass);
+				if (authenticateUser(tS->clientPass, tS->serverPass)) {
+					sendResponse(tS->commSocket, false, "user authorised\r\n");
+					tS->serverStatus = 1;
+				} else {
+					sendResponse(tS->commSocket, true, "invalid username or password\r\n");
+					return false;
+				}
+			}
+		} else if (op == 2) {
+			tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false);
+			if (checkUser(tS->clientUser, tS->serverUser)) {
+				sendResponse(tS->commSocket, false, "now enter password\r\n");
+
+				if (((int) recv(tS->commSocket, receivedMessage, 1024, 0)) <= 0) {
+					return false;
+				} else {
+					if (getOperation(receivedMessage) == 3) {
+
+						tS->clientPass = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n", false);
+						if (authenticateUser(tS->clientPass, tS->serverPass)) {
+							sendResponse(tS->commSocket, false, "user authorised\r\n");
+							tS->serverStatus = 1;
+						} else {
+							sendResponse(tS->commSocket, true, "invalid username or password\r\n");
+							return false;
+						}
+					} else {
+						sendResponse(tS->commSocket, true, "invalid operation\r\n");
+						return false;
+					}
+				}
+			} else {
+				sendResponse(tS->commSocket, true, "invalid username or password\r\n");
+				return false;
+			}
+		} else {
+			sendResponse(tS->commSocket, true, "invalid operation\r\n");
+			return false;
+		}
+	} else {
+		if (op == 1) {
+			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), " ", false), tS->serverUser)) {
+				tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ",true), "\r\n", true);
+				tS->serverPass = md5(tS->pidTimeStamp+tS->serverPass);
+				if (authenticateUser(tS->clientPass, tS->serverPass)) {
+					sendResponse(tS->commSocket, false, "user authorised\r\n");
+					tS->serverStatus = 1;
+				} else {
+					sendResponse(tS->commSocket, true, "invalid username or password\r\n");
+					return false;
+				}
+			}
+
+		} else {
+			sendResponse(tS->commSocket, true,
+			return false;
+
+		}
+
+	}
+	return true;
+}
 
 void *clientThread(void *tS) {
 
@@ -305,42 +368,10 @@ void *clientThread(void *tS) {
 			int op = 0;
 			if ((op = getOperation(receivedMessage)) != 0) {
 				cout <<  endl << "OP: " << op << endl;
-				if (isHashed) {
-					if (op == 2) {
-						tParam->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), "\r\n",
-															 false);
-						if (checkUser(tParam)) {
-							sendResponse(tParam->commSocket, false, "now enter password\r\n");
+				if (userIsAuthorised(op, tParam, receivedMessage, tParam->isHashed)) {
 
-							if (((int) recv(tParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
-								break;
-							} else {
-								if (getOperation(receivedMessage) == 3) {
-
-									tParam->clientPass = returnSubstring(returnSubstring(receivedMessage, " ", true),
-																		 "\r\n", false);
-									if (authenticateUser(tParam)) {
-										sendResponse(tParam->commSocket, false, "\r\n");
-										tParam->serverStatus = 1;
-
-									} else {
-										sendResponse(tParam->commSocket, true, "invalid username or password\r\n");
-										continue;
-									}
-								} else {
-									sendResponse(tParam->commSocket, true, "wtf jsi retardovany?\r\n");
-								}
-							}
-						} else {
-							sendResponse(tParam->commSocket, true, "invalid username or password\r\n");
-							continue;
-						}
-					} else if (op == 3) {
-						logConsole(true, false, receivedMessage, false);
-						memset(receivedMessage, 0, strlen(receivedMessage));
-					}
 				} else {
-
+					continue;
 				}
 			} else {
 				sendResponse(tParam->commSocket, true, "unknown operation");
@@ -357,96 +388,107 @@ void *clientThread(void *tS) {
 int main(int argc, char *argv[]) {
 
 
-		// params
-		if (!checkParams(argc) || !parseParams(argc, argv)) {
-			throwException("ERROR: Wrong arguments.");
+	bool help = false;
+	bool reset = false;
+	string serverDir = "";
+	string usersFile = "";
+	string serverUser = "";
+	string serverPass = "";
+	int port = 0;
+	bool isHashed = true;
+
+	// params
+	if (!checkParams(argc) || !parseParams(argc, argv, help, isHashed, reset, usersFile, serverDir, port)) {
+		throwException("ERROR: Wrong arguments.");
+	}
+
+	if (help) {
+		printHelp();
+		exit(EXIT_SUCCESS);
+	}
+
+
+	cout << "HELP VAL: " << help << endl;
+	cout << "RESET VAL: " << reset << endl;
+	cout << "serverDir VAL: " << serverDir << endl;
+	cout << "usersFile VAL: " << usersFile << endl;
+	cout << "port VAL: " << port << endl;
+	cout << "isHashed VAL: " << isHashed << endl;
+
+	// username and pw from config file
+
+	threadStruct *tS = new threadStruct;
+
+	if (!checkUsersFile(usersFile.c_str(), serverUser, serverPass, isHashed)) {
+		throwException("ERROR: Wrong format of User file.");
+	}
+
+	cout << "USER: " << serverUser << endl;
+	cout << "PASS: " << serverPass << endl;
+
+	cout << generatePidTimeStamp() << endl;
+
+	cout << serverDir << endl;
+
+	// we will create and open a socket
+	int serverSocket;
+
+	if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) <= 0) {
+		throwException("ERROR: Could not open server socket.\n");
+	}
+
+
+	int opt = 1;
+	if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
+		throwException("ERROR: Setsockopt failure.");
+	}
+
+	struct sockaddr_in clientaddr;
+	struct sockaddr_in serveraddr;
+	memset((char *) &serveraddr, '\0', sizeof(serveraddr));
+	serveraddr.sin_family = AF_INET;
+	serveraddr.sin_port = htons((unsigned short) port);
+	serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	int rc;
+	if ((rc = bind(serverSocket, (struct sockaddr *) &serveraddr, sizeof(serveraddr))) < 0) {
+		throwException("ERROR: Could not bind to port.\n");
+	}
+
+
+	if ((listen(serverSocket, 1)) < 0) {
+		throwException("ERROR: Could not start listening on port.\n");
+	}
+	printf("DEBUG INFO\n");
+	cout << "Port: " << port << endl;;
+	cout << "Server DIR: " << serverDir << endl;
+
+	printf("Server is online! It will be now waiting for request.\n");
+
+	socklen_t clientlen = sizeof(clientaddr);
+	while (1) {
+		int commSocket;
+
+		if ((commSocket = accept(serverSocket, (struct sockaddr *) &clientaddr, &clientlen)) > 0) {
+
+			pthread_t thread;
+
+			tS->usersFile = usersFile;
+			tS->serverUser = serverUser;
+			tS->serverPass = serverPass;
+			tS->isHashed = isHashed;
+			tS->serverDir= serverDir;
+			tS->commSocket = commSocket;
+			tS->tmpDir = "~/tmpPath/";
+			tS->pidTimeStamp = generatePidTimeStamp();
+
+
+			pthread_create(&thread, NULL, clientThread, tS);
+
+		} else {
+			break;
 		}
-
-		if (help) {
-			printHelp();
-			exit(EXIT_SUCCESS);
-		}
-
-
-		cout << "HELP VAL: " << help << endl;
-		cout << "RESET VAL: " << reset << endl;
-		cout << "serverDir VAL: " << serverDir << endl;
-		cout << "usersFile VAL: " << usersFile << endl;
-		cout << "port VAL: " << port << endl;
-		cout << "isHashed VAL: " << isHashed << endl;
-
-		// username and pw from config file
-
-		threadStruct *tS = new threadStruct;
-
-		if (!checkUsersFile(usersFile.c_str(), serverUser, serverPass, isHashed)) {
-			throwException("ERROR: Wrong format of User file.");
-		}
-
-		cout << "USER: " << serverUser << endl;
-		cout << "PASS: " << serverPass << endl;
-
-		cout << generatePidTimeStamp() << endl;
-
-		cout << serverDir << endl;
-
-		// we will create and open a socket
-		int serverSocket;
-
-		if ((serverSocket = socket(AF_INET, SOCK_STREAM, 0)) <= 0) {
-			throwException("ERROR: Could not open server socket.\n");
-		}
-
-
-		int opt = 1;
-		if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-			throwException("ERROR: Setsockopt failure.");
-		}
-
-		struct sockaddr_in clientaddr;
-		struct sockaddr_in serveraddr;
-		memset((char *) &serveraddr, '\0', sizeof(serveraddr));
-		serveraddr.sin_family = AF_INET;
-		serveraddr.sin_port = htons((unsigned short) port);
-		serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-		int rc;
-		if ((rc = bind(serverSocket, (struct sockaddr *) &serveraddr, sizeof(serveraddr))) < 0) {
-			throwException("ERROR: Could not bind to port.\n");
-		}
-
-
-		if ((listen(serverSocket, 1)) < 0) {
-			throwException("ERROR: Could not start listening on port.\n");
-		}
-		printf("DEBUG INFO\n");
-		cout << "Port: " << port << endl;;
-		cout << "Server DIR: " << serverDir << endl;
-
-		printf("Server is online! It will be now waiting for request.\n");
-
-		socklen_t clientlen = sizeof(clientaddr);
-		while (1) {
-			int commSocket;
-
-			if ((commSocket = accept(serverSocket, (struct sockaddr *) &clientaddr, &clientlen)) > 0) {
-
-				pthread_t thread;
-
-				tS->usersFile = usersFile;
-				tS->isHashed = isHashed;
-				tS->serverDir= serverDir;
-				tS->commSocket = commSocket;
-				tS->tmpDir = "~/tmpPath/";
-				tS->pidTimeStamp = generatePidTimeStamp();
-
-
-				pthread_create(&thread, NULL, clientThread, tS);
-
-			} else {
-				break;
-			}
-		}
+	}
 
 	return 0;
 }
