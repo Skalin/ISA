@@ -379,7 +379,7 @@ void moveNewToCur(threadStruct *tS) {
 				deleteMail(mailDirCur+"/"+ent->d_name);
 			}
 			cout << ent->d_name << endl;
-			copyFile(mailDirNew+"/"+ent->d_name, mailDirCur+"/"+ent->d_name);
+			copyFile(mailDirNew+"/"+ent->d_name, mailDirCur+"/"+ent->d_name+":2,");
 			deleteMail(mailDirNew+"/"+ent->d_name);
 		}
 	}
