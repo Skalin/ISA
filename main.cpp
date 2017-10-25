@@ -45,6 +45,19 @@ typedef struct {
 } threadStruct;
 
 
+typedef struct mailStruct{
+	int id;
+	string name;
+	int size;
+	bool toDelete;
+	mailStruct *nextMail;
+} *mailStructPtr;
+
+typedef struct {
+	mailStructPtr First;
+	mailStructPtr Active;
+} tList;
+
 string getCurrDate() {
 
 	char multiByteString[100];
@@ -322,6 +335,125 @@ bool moveNewToCur(threadStruct *tS) {
 
 	return true;
 }
+
+
+/* List operations over mails */
+
+void initList(tList *L) {
+	L->First = NULL;
+	L->Active = NULL;
+}
+
+void disposeList(tList *L) {
+	while (L->First != NULL) {
+		mailStructPtr helpMail = new mailStruct;
+
+		helpMail = L->First->nextMail;
+		delete(L->First);
+		L->First = NULL;
+		L->First = helpMail;
+		delete(helpMail);
+	}
+
+	L->Active = NULL;
+}
+
+void insertFirst(tList *L, string name, int size) {
+
+	mailStructPtr first = new mailStruct;
+
+	first->name = name;
+	first->size = size;
+	first->nextMail = L->First;
+	first->toDelete = false;
+	L->First->nextMail = first;
+}
+
+
+void first(tList *L) {
+	L->Active = L->First;
+}
+
+
+void succ(tList *L) {
+	if (L->Active != NULL) {
+		L->Active = L->Active->nextMail;
+	}
+}
+
+
+void copy(tList *L, int index, int *size, string *name, bool *toDelete) {
+	if (L->First == NULL) {
+	} else {
+		int i = 0;
+		while (i < index) {
+			first(L);
+			if (L->Active != NULL) {
+				succ(L);
+			}
+			i++;
+		}
+		*size = L->First->size;
+		*name = L->First->name;
+		*toDelete = L->First->toDelete;
+	}
+}
+
+/*
+void deleteFirst(tList *L) {
+	if (L->First != NULL) {
+		if (L->First == L->Active) {
+			delete(L->Active);
+			L->Active = NULL;
+		} else {
+			delete(L->First);
+			L->First = NULL;
+		}
+	}
+}*/
+
+void insertAtTheEnd(tList *L, int size, string name) {
+	while (L->Active != NULL) {
+		succ(L);
+	}
+
+	mailStructPtr last = new mailStruct;
+
+	L->Active->nextMail = last;
+	last->size = size;
+	last->name = name;
+	last->toDelete = false;
+}
+
+
+void markForDeletion(tList *L, int index) {
+	int i = 0;
+	while (i < index) {
+		if (L->Active != NULL) {
+			succ(L);
+		}
+		i++;
+	}
+	L->Active->toDelete = true;
+}
+
+bool checkIndexOfMail(tList *L, int index) {
+	int i = 0;
+	while (i < index) {
+
+		if (L->Active != NULL) {
+			succ(L);
+		} else {
+			return false;
+		}
+		i++;
+	}
+	return true;
+}
+
+/* Fill mails in structures from dirs */
+
+
 
 void closeConnection(int socket) {
 	sendResponse(socket, false, "bye");
