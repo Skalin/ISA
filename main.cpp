@@ -322,18 +322,68 @@ int numberOfFiles(string dir) {
 
 }
 
-bool moveNewToCur(threadStruct *tS) {
+void copyFile(string from, string to) {
+	ifstream src(from.c_str(), ios::binary);
+	ofstream dst(to.c_str(), ios::binary);
+
+	dst << src.rdbuf();
+}
+
+string getCwd(){
+	char buffer[1024];
+	return getcwd(buffer, sizeof(buffer));
+
+}
+
+bool mailExists(string dir, string name) {
+	DIR *directory;
+	struct dirent *ent;
+
+	if ((directory = opendir(dir.c_str())) != NULL) {
+		while ((ent = readdir(directory)) != NULL) {
+			if (string(ent->d_name) == "." || string(ent->d_name) == "..") {
+				continue;
+			}
+			if (ent->d_name == name) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+void deleteMail(string path) {
+	remove(path.c_str());
+}
+
+void moveNewToCur(threadStruct *tS) {
 
 	DIR *dir;
 	struct dirent *ent;
 
-	if ((dir = opendir(tS->mailDir.c_str())) != NULL) {
-		while ((ent = readdir(dir)) != NULL) {
+	string mailDirNew = tS->mailDir+"/new";
+	string mailDirCur = tS->mailDir+"/cur";
 
+	cout << mailDirNew << endl;
+	cout << mailDirCur << endl;
+
+	if ((dir = opendir(mailDirNew.c_str())) != NULL) {
+		while ((ent = readdir(dir)) != NULL) {
+			if (string(ent->d_name) == "." || string(ent->d_name) == "..") {
+				continue;
+			}
+			if (mailExists(mailDirCur, ent->d_name)) {
+				cout << "MAIL EXISTS" << endl;
+				cout << mailDirCur+"/"+ent->d_name << endl;
+				deleteMail(mailDirCur+"/"+ent->d_name);
+			}
+			cout << ent->d_name << endl;
+			copyFile(mailDirNew+"/"+ent->d_name, mailDirCur+"/"+ent->d_name);
+			deleteMail(mailDirNew+"/"+ent->d_name);
 		}
 	}
 
-	return true;
 }
 
 
@@ -480,6 +530,8 @@ void executeMailServer(threadStruct *tS) {
 	 *
 	 **/
 
+	moveNewToCur(tS);
+
 
 
 
@@ -610,14 +662,6 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_SUCCESS);
 	}
 
-
-	cout << "HELP VAL: " << help << endl;
-	cout << "RESET VAL: " << reset << endl;
-	cout << "mailDir VAL: " << mailDir << endl;
-	cout << "usersFile VAL: " << usersFile << endl;
-	cout << "port VAL: " << port << endl;
-	cout << "isHashed VAL: " << isHashed << endl;
-
 	// username and pw from config file
 
 	threadStruct *tS = new threadStruct;
@@ -625,13 +669,6 @@ int main(int argc, char *argv[]) {
 	if (!checkUsersFile(usersFile.c_str(), serverUser, serverPass, isHashed)) {
 		throwException("ERROR: Wrong format of User file.");
 	}
-
-	cout << "USER: " << serverUser << endl;
-	cout << "PASS: " << serverPass << endl;
-
-	cout << generatePidTimeStamp() << endl;
-
-	cout << mailDir << endl;
 
 	// we will create and open a socket
 	int serverSocket;
@@ -664,7 +701,14 @@ int main(int argc, char *argv[]) {
 	}
 	printf("DEBUG INFO\n");
 	cout << "Port: " << port << endl;;
-	cout << "Server DIR: " << mailDir << endl;
+	cout << "HELP VAL: " << help << endl;
+	cout << "RESET VAL: " << reset << endl;
+	cout << "mailDir VAL: " << mailDir << endl;
+	cout << "usersFile VAL: " << usersFile << endl;
+	cout << "port VAL: " << port << endl;
+	cout << "isHashed VAL: " << isHashed << endl;
+	cout << "USER: " << serverUser << endl;
+	cout << "PASS: " << serverPass << endl;
 
 	printf("Server is online! It will be now waiting for request.\n");
 
@@ -682,6 +726,8 @@ int main(int argc, char *argv[]) {
 			tS->mailDir= mailDir;
 			tS->commSocket = commSocket;
 			tS->pidTimeStamp = generatePidTimeStamp();
+
+			cout << "TMSTMP: " << tS->pidTimeStamp << endl;
 
 
 			pthread_create(&thread, NULL, clientThread, tS);
