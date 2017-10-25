@@ -24,6 +24,7 @@
 
 #include <sstream>
 #include <fstream>
+#include <signal.h>
 
 
 #include "lib/md5/md5.cpp"
@@ -31,6 +32,9 @@
 using namespace std;
 
 mutex mutexerino;
+
+
+string mailConfig = "./mail.cfg";
 
 typedef struct {
 	string mailDir = "";
@@ -123,14 +127,14 @@ void printHelp() {
 }
 
 bool checkParams(int argc) {
-	if (argc == 1 || (argc > 2 && argc < 7) || argc > 9) {
+	/* if ((argc > 1 && argc < 7) || argc > 9) {
 		throwException("ERROR: Wrong amount of arguments.");
-	}
+	}*/
 	
 	return true;
 }
 
-bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset, string &usersFile, string &serverDir, int &port) {
+bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset, string &usersFile, string &mailDir, int &port) {
 	int c;
 
 	// TODO osetreni argumentu
@@ -150,18 +154,19 @@ bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset
 				port = atoi(optarg);
 				break;
 			case 'd':
-				serverDir = optarg;
+				mailDir = optarg;
 				break;
 			case 'r':
 				reset = true;
+				break;
 			case ':':
-				throwException("ERROR: Wrong arguments.");
+				throwException("ERROR: Wrong 1 arguments.");
 				return false;
 			case '?':
-				throwException("ERROR: Wrong arguments.");
+				throwException("ERROR: Wrong 2 arguments.");
 				return false;
 			default:
-				throwException("ERROR: Wrong arguments.");
+				throwException("ERROR: Wrong 3 arguments.");
 				return false;
 		}
 	}
@@ -182,25 +187,10 @@ string returnSubstring(string String, string delimiter, bool way) {
 	return subString;
 }
 
-string findUserPw(string file, string user) {
-	
-	string userlist = "";
-	string line;
-	
-	ifstream users (file.c_str());
-	if (users.is_open()) {
-		while (getline(users, line)) {
-			if (line.find(user) != std::string::npos && line.find(user) == 0) {
-				return returnSubstring(line, " ", true);
-			}
-		}
-	} else {
-		throwException("Error: Couldn't open userpw file.");
-	}
-	
-	users.close();
-	
-	return "";
+bool isDirectory(const char *folder) {
+	struct stat sb;
+
+	return ((stat(folder, &sb) == 0) && S_ISDIR(sb.st_mode));
 }
 
 bool checkUsersFile(const char *name, string &user, string &pass, bool hashed) {
@@ -362,8 +352,8 @@ void moveNewToCur(threadStruct *tS) {
 	DIR *dir;
 	struct dirent *ent;
 
-	string mailDirNew = tS->mailDir+"/new";
-	string mailDirCur = tS->mailDir+"/cur";
+	string mailDirNew = tS->mailDir+"/new/";
+	string mailDirCur = tS->mailDir+"/cur/";
 
 	cout << mailDirNew << endl;
 	cout << mailDirCur << endl;
@@ -375,12 +365,12 @@ void moveNewToCur(threadStruct *tS) {
 			}
 			if (mailExists(mailDirCur, ent->d_name)) {
 				cout << "MAIL EXISTS" << endl;
-				cout << mailDirCur+"/"+ent->d_name << endl;
-				deleteMail(mailDirCur+"/"+ent->d_name);
+				cout << mailDirCur+ent->d_name << endl;
+				deleteMail(mailDirCur+ent->d_name);
 			}
 			cout << ent->d_name << endl;
-			copyFile(mailDirNew+"/"+ent->d_name, mailDirCur+"/"+ent->d_name+":2,");
-			deleteMail(mailDirNew+"/"+ent->d_name);
+			copyFile(mailDirNew+ent->d_name, mailDirCur+ent->d_name);
+			deleteMail(mailDirNew+ent->d_name);
 		}
 	}
 
@@ -512,13 +502,25 @@ void closeConnection(int socket) {
 	pthread_exit(NULL);
 }
 
+
+bool maildirAlright(string dir) {
+	return (isDirectory((dir+"/new").c_str()) && isDirectory((dir+"/cur").c_str()) && isDirectory((dir+"/tmp").c_str()));
+}
+
 void executeMailServer(threadStruct *tS) {
 
 	if (mutexerino.try_lock()) {
-		sendResponse(tS->commSocket, false, "maildrop locked and ready");
-		int numOfFiles = numberOfFiles(tS->mailDir+"/cur")+numberOfFiles(tS->mailDir+"/new");
-		string stringNumOfFiles = to_string(numOfFiles);
-		sendResponse(tS->commSocket, false, "username's maildrop has "+stringNumOfFiles+" messages (xyz octets)");
+		if (maildirAlright(tS->mailDir)) {
+
+			sendResponse(tS->commSocket, false, "maildrop locked and ready");
+			int numOfFiles = numberOfFiles(tS->mailDir+"/cur")+numberOfFiles(tS->mailDir+"/new");
+			string stringNumOfFiles = to_string(numOfFiles);
+			sendResponse(tS->commSocket, false, "username's maildrop has "+stringNumOfFiles+" messages (xyz octets)");
+
+		} else {
+			sendResponse(tS->commSocket, true, "maildir not OK");
+			closeConnection(tS->commSocket);
+		}
 	} else {
 		sendResponse(tS->commSocket, true, "permission denied");
 	}
@@ -532,10 +534,6 @@ void executeMailServer(threadStruct *tS) {
 
 	moveNewToCur(tS);
 
-
-
-
-	return;
 }
 
 
@@ -640,8 +638,50 @@ void *clientThread(void *tS) {
 	return NULL;
 }
 
+
+void resetMail() {
+
+	string line;
+
+	ifstream users (mailConfig.c_str());
+	if (users.is_open()) {
+		int i = 0;
+		string mailDir;
+		string name;
+		while(getline(users, line)) {
+			if (i % 2 == 0) {
+				mailDir = returnSubstring(line, "dir = ", true);
+			} else {
+				name = returnSubstring(line, "name = ", true);
+				cout << name << endl;
+				copyFile(mailDir+"/cur/"+name, mailDir+"/new/"+returnSubstring(name, ":2,", false));
+				remove((mailDir+"/cur/"+name).c_str());
+			}
+			i++;
+		}
+
+	remove(mailConfig.c_str());
+	}
+
+}
+
+void createMailCfg() {
+	// TODO get all mails from structures and save it in format
+	/* dir = dir
+	 * name = name:2, (:2, is already in name)
+	 * **/
+
+}
+
+void siginthandler(int param) {
+	createMailCfg();
+	exit(1);
+}
+
+
 int main(int argc, char *argv[]) {
 
+	signal(SIGINT, siginthandler);
 
 	bool help = false;
 	bool reset = false;
@@ -657,9 +697,33 @@ int main(int argc, char *argv[]) {
 		throwException("ERROR: Wrong arguments.");
 	}
 
+
+
+
+	printf("DEBUG INFO\n");
+	cout << "Arguments: " << argc << endl;
+	cout << "Port: " << port << endl;
+	cout << "HELP VAL: " << help << endl;
+	cout << "RESET VAL: " << reset << endl;
+	cout << "mailDir VAL: " << mailDir << endl;
+	cout << "usersFile VAL: " << usersFile << endl;
+	cout << "port VAL: " << port << endl;
+	cout << "isHashed VAL: " << isHashed << endl;
+	cout << "USER: " << serverUser << endl;
+	cout << "PASS: " << serverPass << endl;
+	cout << "Mail Config FILE: " << mailConfig << endl;
+
+
 	if (help) {
 		printHelp();
 		exit(EXIT_SUCCESS);
+	}
+
+	if (reset) {
+		resetMail();
+		if (argc == 2) {
+			exit(EXIT_SUCCESS);
+		}
 	}
 
 	// username and pw from config file
@@ -699,17 +763,6 @@ int main(int argc, char *argv[]) {
 	if ((listen(serverSocket, 1)) < 0) {
 		throwException("ERROR: Could not start listening on port.\n");
 	}
-	printf("DEBUG INFO\n");
-	cout << "Port: " << port << endl;;
-	cout << "HELP VAL: " << help << endl;
-	cout << "RESET VAL: " << reset << endl;
-	cout << "mailDir VAL: " << mailDir << endl;
-	cout << "usersFile VAL: " << usersFile << endl;
-	cout << "port VAL: " << port << endl;
-	cout << "isHashed VAL: " << isHashed << endl;
-	cout << "USER: " << serverUser << endl;
-	cout << "PASS: " << serverPass << endl;
-
 	printf("Server is online! It will be now waiting for request.\n");
 
 	socklen_t clientlen = sizeof(clientaddr);
