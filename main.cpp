@@ -1,8 +1,6 @@
 
 #include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include <ctime>
 #include <unistd.h>
 #include <cstring>
 #include <sys/stat.h>
@@ -35,6 +33,7 @@ mutex mutexerino;
 
 
 string mailConfig = "./mail.cfg";
+string mailDir = "";
 
 typedef struct {
 	string mailDir = "";
@@ -61,6 +60,10 @@ typedef struct {
 	mailStructPtr First;
 	mailStructPtr Active;
 } tList;
+
+
+tList *L = new tList;
+
 
 string getCurrDate() {
 
@@ -193,7 +196,7 @@ bool isDirectory(const char *folder) {
 	return ((stat(folder, &sb) == 0) && S_ISDIR(sb.st_mode));
 }
 
-bool checkUsersFile(const char *name, string &user, string &pass, bool hashed) {
+bool checkUsersFile(const char *name, string &user, string &pass) {
 	
 	if (!fileExists(name)) {
 		return false;
@@ -234,6 +237,26 @@ int getOperation(string message) {
 		return 3;
 	} else if (op == "QUIT") {
 		return 4;
+	} else if (op == "LIST") {
+		return 5;
+	} else if (returnSubstring(op, " ", false) == "LIST") {
+		return 6;
+	} else if (op == "NOOP") {
+		return 7;
+	} else if (op == "STAT") {
+		return 8;
+	} else if (returnSubstring(op, " ", false) == "RETR") {
+		return 9;
+	} else if (returnSubstring(op, " ", false) == "DELE") {
+		return 10;
+	} else if (op == "RSET") {
+		return 11;
+	} else if (op == "UIDL") {
+		return 12;
+	} else if (returnSubstring(op, " ", false) == "UIDL") {
+		return 13;
+	} else if (returnSubstring(op, " ", false) == "TOP") {
+		return 14;
 	} else {
 		return 0;
 	}
@@ -273,6 +296,11 @@ void sendResponse(int socket, bool error, string message) {
 	response = response+" "+message+"\r\n";
 	
 	send(socket, response.c_str(), response.size(), 0);
+}
+
+void sendMessage(int socket, string message) {
+
+	send(socket, message.c_str(), message.size(), 0);
 }
 
 
@@ -351,6 +379,7 @@ void moveNewToCur(threadStruct *tS) {
 
 	DIR *dir;
 	struct dirent *ent;
+
 
 	string mailDirNew = tS->mailDir+"/new/";
 	string mailDirCur = tS->mailDir+"/cur/";
@@ -465,8 +494,7 @@ void insertAtTheEnd(tList *L, int size, string name) {
 	last->toDelete = false;
 }
 
-
-void markForDeletion(tList *L, int index) {
+bool checkIfMarkedForDeletion(tList *L, int index) {
 	int i = 0;
 	while (i < index) {
 		if (L->Active != NULL) {
@@ -474,13 +502,26 @@ void markForDeletion(tList *L, int index) {
 		}
 		i++;
 	}
-	L->Active->toDelete = true;
+
+	if (L->Active->toDelete) {
+		return true;
+	}
+	return false;
+}
+
+void markForDeletion(threadStruct *tS, tList *L, int index) {
+
+	if (checkIfMarkedForDeletion(L, index)) {
+		sendResponse(tS->commSocket, true, "mail already marked for deletion");
+	} else {
+		L->Active->toDelete = true;
+	}
 }
 
 bool checkIndexOfMail(tList *L, int index) {
 	int i = 0;
-	while (i < index) {
 
+	while (i < index) {
 		if (L->Active != NULL) {
 			succ(L);
 		} else {
@@ -488,8 +529,62 @@ bool checkIndexOfMail(tList *L, int index) {
 		}
 		i++;
 	}
+
 	return true;
 }
+
+string returnNameOfMail(tList *L, int index) {
+	int i = 0;
+
+	first(L);
+
+	while(i < index) {
+		i++;
+		succ(L);
+	}
+
+	return L->Active->name;
+}
+
+int sumOfMails(tList *L) {
+	int i = 0;
+
+	first(L);
+	while (L->Active != NULL) {
+		if (!L->Active->toDelete) {
+			i++;
+		}
+		succ(L);
+	}
+
+	return i;
+}
+
+int sumOfSizeMails(tList *L) {
+	int size = 0;
+	first(L);
+	while(L->Active != NULL) {
+		if (!L->Active->toDelete) {
+			size += L->Active->size;
+		}
+		succ(L);
+	}
+
+	return size;
+}
+
+
+string getMailContent(threadStruct *tS, string name) {
+	string returnedString;
+	string line;
+
+	ifstream file;
+	file.open(name);
+	while (getline(file, line)) {
+		sendMessage(tS->commSocket, line);
+	}
+}
+
 
 /* Fill mails in structures from dirs */
 
@@ -507,16 +602,56 @@ bool checkMailDir(string dir) {
 	return (isDirectory((dir+"/new").c_str()) && isDirectory((dir+"/cur").c_str()) && isDirectory((dir+"/tmp").c_str()));
 }
 
+void rsetOperation(threadStruct *tS) {
+	first(L);
+
+	while(L->Active != NULL) {
+		if (L->Active->toDelete) {
+			L->Active->toDelete = false;
+		}
+	}
+	sendResponse(tS->commSocket, true, "user's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+") octets");
+}
+
+void deleOperation(threadStruct *tS, int index) {
+	if (!checkIndexOfMail(L, index)) {
+		sendResponse(tS->commSocket, true, "mail does not exist");
+	} else {
+		markForDeletion(tS, L, index);
+		sendResponse(tS->commSocket, false, "mail marked for deletion");
+	}
+}
+
+void statOperation(threadStruct *tS) {
+	int mails = sumOfMails(L);
+	int size = sumOfSizeMails(L);
+
+	sendResponse(tS->commSocket, false, to_string(mails)+" "+to_string(size));
+}
+
+void retrOperation(threadStruct *tS, int index) {
+	string mail = "";
+
+	if (!checkIndexOfMail(L, index)) {
+		sendResponse(tS->commSocket, true, "mail does not exist");
+	} else {
+		if (checkIfMarkedForDeletion(L, index)) {
+			sendResponse(tS->commSocket, true, "mail marked for deletion");
+		} else {
+			getMailContent(tS, returnNameOfMail(L, index));
+
+		}
+	}
+
+}
+
+
 void executeMailServer(threadStruct *tS) {
 
 	if (mutexerino.try_lock()) {
 		if (checkMailDir(tS->mailDir)) {
-
 			sendResponse(tS->commSocket, false, "maildrop locked and ready");
-			int numOfFiles = numberOfFiles(tS->mailDir+"/cur")+numberOfFiles(tS->mailDir+"/new");
-			string stringNumOfFiles = to_string(numOfFiles);
-			sendResponse(tS->commSocket, false, "username's maildrop has "+stringNumOfFiles+" messages (xyz octets)");
-
+			sendResponse(tS->commSocket, false, "username's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
 		} else {
 			sendResponse(tS->commSocket, true, "maildir not OK");
 			closeConnection(tS->commSocket);
@@ -535,6 +670,8 @@ void executeMailServer(threadStruct *tS) {
 	moveNewToCur(tS);
 
 }
+
+
 
 
 bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHashed) {
@@ -665,16 +802,31 @@ void resetMail() {
 
 }
 
-void createMailCfg() {
+void createMailCfg(tList *L) {
 	// TODO get all mails from structures and save it in format
-	/* dir = dir
-	 * name = name:2, (:2, is already in name)
+	/* maildirdir = dir
+	 * name = name:2, (:2, is already in name) name = returnSubstring(name, ":2,", false)
 	 * **/
 
+	string maildir = mailDir;
+	string name;
+	ofstream file;
+	file.open(mailConfig);
+
+	first(L);
+
+	while (L->Active != NULL) {
+		name = L->Active->name;
+		file << "name = " << name << endl;
+		file << "dir = " << maildir << endl;
+		succ(L);
+	}
+
+	file.close();
 }
 
 void siginthandler(int param) {
-	createMailCfg();
+	createMailCfg(L);
 	exit(1);
 }
 
@@ -685,10 +837,9 @@ int main(int argc, char *argv[]) {
 
 	bool help = false;
 	bool reset = false;
-	string mailDir = "";
-	string usersFile = "";
-	string serverUser = "";
-	string serverPass = "";
+	string usersFile;
+	string serverUser;
+	string serverPass;
 	int port = 0;
 	bool isHashed = true;
 
@@ -728,9 +879,7 @@ int main(int argc, char *argv[]) {
 
 	// username and pw from config file
 
-	threadStruct *tS = new threadStruct;
-
-	if (!checkUsersFile(usersFile.c_str(), serverUser, serverPass, isHashed)) {
+	if (!checkUsersFile(usersFile.c_str(), serverUser, serverPass)) {
 		throwException("ERROR: Wrong format of User file.");
 	}
 
@@ -772,6 +921,8 @@ int main(int argc, char *argv[]) {
 		if ((commSocket = accept(serverSocket, (struct sockaddr *) &clientaddr, &clientlen)) > 0) {
 
 			pthread_t thread;
+
+			threadStruct *tS = new threadStruct;
 
 			tS->serverUser = serverUser;
 			tS->serverPass = serverPass;
