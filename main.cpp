@@ -503,14 +503,14 @@ void closeConnection(int socket) {
 }
 
 
-bool maildirAlright(string dir) {
+bool checkMailDir(string dir) {
 	return (isDirectory((dir+"/new").c_str()) && isDirectory((dir+"/cur").c_str()) && isDirectory((dir+"/tmp").c_str()));
 }
 
 void executeMailServer(threadStruct *tS) {
 
 	if (mutexerino.try_lock()) {
-		if (maildirAlright(tS->mailDir)) {
+		if (checkMailDir(tS->mailDir)) {
 
 			sendResponse(tS->commSocket, false, "maildrop locked and ready");
 			int numOfFiles = numberOfFiles(tS->mailDir+"/cur")+numberOfFiles(tS->mailDir+"/new");
