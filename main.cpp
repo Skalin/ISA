@@ -70,7 +70,7 @@ string getCurrDate() {
 	char multiByteString[100];
 	string dateTime;
 
-	time_t t = time(NULL);
+	time_t t = time(nullptr);
 	if (strftime(multiByteString, sizeof(multiByteString), "%T", localtime(&t))) {
 		dateTime = multiByteString;
 	} else {
@@ -130,6 +130,8 @@ void printHelp() {
 }
 
 bool checkParams(int argc) {
+
+	// TODO
 	/* if ((argc > 1 && argc < 7) || argc > 9) {
 		throwException("ERROR: Wrong amount of arguments.");
 	}*/
@@ -219,7 +221,7 @@ bool checkUsersFile(const char *name, string &user, string &pass) {
 		}
 	}
 	
-	
+	users.close();
 	
 	return true;
 }
@@ -276,7 +278,7 @@ string generatePidTimeStamp(){
 	struct hostent *host;
 	host = gethostbyname(hostname);
 	
-	time_t currTime = time(NULL);
+	time_t currTime = time(nullptr);
 	
 	return ("<"+pidStr+"."+to_string(currTime)+"@"+host->h_name+">");
 	
@@ -323,9 +325,9 @@ int numberOfFiles(string dir) {
 	DIR *directory;
 	struct dirent *ent;
 
-	if ((directory = opendir(dir.c_str())) != NULL) {
+	if ((directory = opendir(dir.c_str())) != nullptr) {
 
-		while ((ent = readdir(directory)) != NULL) {
+		while ((ent = readdir(directory)) != nullptr) {
 			if(string(ent->d_name) == ".." || string(ent->d_name) == ".")
 				continue;
 			sum++;
@@ -357,8 +359,8 @@ bool mailExists(string dir, string name) {
 	DIR *directory;
 	struct dirent *ent;
 
-	if ((directory = opendir(dir.c_str())) != NULL) {
-		while ((ent = readdir(directory)) != NULL) {
+	if ((directory = opendir(dir.c_str())) != nullptr) {
+		while ((ent = readdir(directory)) != nullptr) {
 			if (string(ent->d_name) == "." || string(ent->d_name) == "..") {
 				continue;
 			}
@@ -387,8 +389,8 @@ void moveNewToCur(threadStruct *tS) {
 	cout << mailDirNew << endl;
 	cout << mailDirCur << endl;
 
-	if ((dir = opendir(mailDirNew.c_str())) != NULL) {
-		while ((ent = readdir(dir)) != NULL) {
+	if ((dir = opendir(mailDirNew.c_str())) != nullptr) {
+		while ((ent = readdir(dir)) != nullptr) {
 			if (string(ent->d_name) == "." || string(ent->d_name) == "..") {
 				continue;
 			}
@@ -409,22 +411,22 @@ void moveNewToCur(threadStruct *tS) {
 /* List operations over mails */
 
 void initList(tList *L) {
-	L->First = NULL;
-	L->Active = NULL;
+	L->First = nullptr;
+	L->Active = nullptr;
 }
 
 void disposeList(tList *L) {
-	while (L->First != NULL) {
+	while (L->First != nullptr) {
 		mailStructPtr helpMail = new mailStruct;
 
 		helpMail = L->First->nextMail;
 		delete(L->First);
-		L->First = NULL;
+		L->First = nullptr;
 		L->First = helpMail;
 		delete(helpMail);
 	}
 
-	L->Active = NULL;
+	L->Active = nullptr;
 }
 
 void insertFirst(tList *L, string name, int size) {
@@ -445,44 +447,77 @@ void first(tList *L) {
 
 
 void succ(tList *L) {
-	if (L->Active != NULL) {
+	if (L->Active != nullptr) {
 		L->Active = L->Active->nextMail;
 	}
 }
 
 
-void copy(tList *L, int index, int *size, string *name, bool *toDelete) {
-	if (L->First == NULL) {
+void copySize(tList *L, int index, int *size) {
+	if (L->First == nullptr) {
 	} else {
 		int i = 0;
 		while (i < index) {
 			first(L);
-			if (L->Active != NULL) {
+			if (L->Active != nullptr) {
 				succ(L);
 			}
 			i++;
 		}
 		*size = L->First->size;
+	}
+}
+
+void copyName(tList *L, int index, string *name) {
+	if (L->First == nullptr) {
+	} else {
+		int i = 0;
+		while (i < index) {
+			first(L);
+			if (L->Active != nullptr) {
+				succ(L);
+			}
+			i++;
+		}
 		*name = L->First->name;
+	}
+}
+
+void copyToDelete(tList *L, int index, bool *toDelete) {
+	if (L->First == nullptr) {
+	} else {
+		int i = 0;
+		while (i < index) {
+			first(L);
+			if (L->Active != nullptr) {
+				succ(L);
+			}
+			i++;
+		}
 		*toDelete = L->First->toDelete;
 	}
 }
 
+
+
+
+
+
 /*
 void deleteFirst(tList *L) {
-	if (L->First != NULL) {
+	if (L->First != nullptr) {
 		if (L->First == L->Active) {
 			delete(L->Active);
-			L->Active = NULL;
+			L->Active = nullptr;
 		} else {
 			delete(L->First);
-			L->First = NULL;
+			L->First = nullptr;
 		}
 	}
 }*/
 
 void insertAtTheEnd(tList *L, int size, string name) {
-	while (L->Active != NULL) {
+	while (L->Active->nextMail != nullptr) {
 		succ(L);
 	}
 
@@ -497,7 +532,7 @@ void insertAtTheEnd(tList *L, int size, string name) {
 bool checkIfMarkedForDeletion(tList *L, int index) {
 	int i = 0;
 	while (i < index) {
-		if (L->Active != NULL) {
+		if (L->Active != nullptr) {
 			succ(L);
 		}
 		i++;
@@ -522,7 +557,7 @@ bool checkIndexOfMail(tList *L, int index) {
 	int i = 0;
 
 	while (i < index) {
-		if (L->Active != NULL) {
+		if (L->Active != nullptr) {
 			succ(L);
 		} else {
 			return false;
@@ -550,7 +585,7 @@ int sumOfMails(tList *L) {
 	int i = 0;
 
 	first(L);
-	while (L->Active != NULL) {
+	while (L->Active != nullptr) {
 		if (!L->Active->toDelete) {
 			i++;
 		}
@@ -563,7 +598,7 @@ int sumOfMails(tList *L) {
 int sumOfSizeMails(tList *L) {
 	int size = 0;
 	first(L);
-	while(L->Active != NULL) {
+	while(L->Active != nullptr) {
 		if (!L->Active->toDelete) {
 			size += L->Active->size;
 		}
@@ -574,7 +609,7 @@ int sumOfSizeMails(tList *L) {
 }
 
 
-string getMailContent(threadStruct *tS, string name) {
+void getMailContent(threadStruct *tS, string name) {
 	string returnedString;
 	string line;
 
@@ -583,6 +618,8 @@ string getMailContent(threadStruct *tS, string name) {
 	while (getline(file, line)) {
 		sendMessage(tS->commSocket, line);
 	}
+
+	file.close();
 }
 
 
@@ -594,7 +631,7 @@ void closeConnection(int socket) {
 	sendResponse(socket, false, "bye");
 	close(socket);
 	mutexerino.unlock();
-	pthread_exit(NULL);
+	pthread_exit(nullptr);
 }
 
 
@@ -605,7 +642,7 @@ bool checkMailDir(string dir) {
 void rsetOperation(threadStruct *tS) {
 	first(L);
 
-	while(L->Active != NULL) {
+	while(L->Active != nullptr) {
 		if (L->Active->toDelete) {
 			L->Active->toDelete = false;
 		}
@@ -638,8 +675,11 @@ void retrOperation(threadStruct *tS, int index) {
 		if (checkIfMarkedForDeletion(L, index)) {
 			sendResponse(tS->commSocket, true, "mail marked for deletion");
 		} else {
+			int size;
+			copySize(L, index, &size);
+			sendResponse(tS->commSocket, false, to_string(size)+" octets");
 			getMailContent(tS, returnNameOfMail(L, index));
-
+			sendMessage(tS->commSocket, ".");
 		}
 	}
 
@@ -670,8 +710,6 @@ void executeMailServer(threadStruct *tS) {
 	moveNewToCur(tS);
 
 }
-
-
 
 
 bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHashed) {
