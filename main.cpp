@@ -631,8 +631,6 @@ void *clientThread(void *tS) {
 				cout << op << endl;
 				logConsole(true, false, string(receivedMessage), false);
 			}
-
-			// wait for client
 		}
 	}
 	return NULL;
@@ -670,6 +668,7 @@ void createMailCfg() {
 	/* dir = dir
 	 * name = name:2, (:2, is already in name)
 	 * **/
+	
 
 }
 
