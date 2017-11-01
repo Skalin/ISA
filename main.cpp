@@ -49,9 +49,8 @@ typedef struct {
 
 
 typedef struct mailStruct{
-	int id;
 	string name;
-	int size;
+	size_t size;
 	bool toDelete;
 	mailStruct *nextMail;
 } *mailStructPtr;
@@ -429,7 +428,7 @@ void disposeList(tList *L) {
 	L->Active = nullptr;
 }
 
-void insertFirst(tList *L, string name, int size) {
+void insertFirst(tList *L, string name, size_t size) {
 
 	mailStructPtr first = new mailStruct;
 
@@ -437,7 +436,9 @@ void insertFirst(tList *L, string name, int size) {
 	first->size = size;
 	first->nextMail = L->First;
 	first->toDelete = false;
-	L->First->nextMail = first;
+
+	first->nextMail = L->First;
+	L->First = first;
 }
 
 
@@ -453,7 +454,7 @@ void succ(tList *L) {
 }
 
 
-void copySize(tList *L, int index, int *size) {
+void copySize(tList *L, int index, size_t *size) {
 	if (L->First == nullptr) {
 	} else {
 		int i = 0;
@@ -516,7 +517,8 @@ void deleteFirst(tList *L) {
 	}
 }*/
 
-void insertAtTheEnd(tList *L, int size, string name) {
+void insertAtTheEnd(tList *L, string name, size_t size) {
+
 	while (L->Active->nextMail != nullptr) {
 		succ(L);
 	}
@@ -527,21 +529,17 @@ void insertAtTheEnd(tList *L, int size, string name) {
 	last->size = size;
 	last->name = name;
 	last->toDelete = false;
+	last->nextMail = nullptr;
 }
 
 bool checkIfMarkedForDeletion(tList *L, int index) {
 	int i = 0;
 	while (i < index) {
-		if (L->Active != nullptr) {
-			succ(L);
-		}
+		succ(L);
 		i++;
 	}
 
-	if (L->Active->toDelete) {
-		return true;
-	}
-	return false;
+	return L->Active->toDelete;
 }
 
 void markForDeletion(threadStruct *tS, tList *L, int index) {
@@ -595,8 +593,8 @@ int sumOfMails(tList *L) {
 	return i;
 }
 
-int sumOfSizeMails(tList *L) {
-	int size = 0;
+size_t sumOfSizeMails(tList *L) {
+	size_t size = 0;
 	first(L);
 	while(L->Active != nullptr) {
 		if (!L->Active->toDelete) {
@@ -661,7 +659,7 @@ void deleOperation(threadStruct *tS, int index) {
 
 void statOperation(threadStruct *tS) {
 	int mails = sumOfMails(L);
-	int size = sumOfSizeMails(L);
+	size_t size = sumOfSizeMails(L);
 
 	sendResponse(tS->commSocket, false, to_string(mails)+" "+to_string(size));
 }
@@ -675,13 +673,56 @@ void retrOperation(threadStruct *tS, int index) {
 		if (checkIfMarkedForDeletion(L, index)) {
 			sendResponse(tS->commSocket, true, "mail marked for deletion");
 		} else {
-			int size;
+			size_t size;
 			copySize(L, index, &size);
 			sendResponse(tS->commSocket, false, to_string(size)+" octets");
 			getMailContent(tS, returnNameOfMail(L, index));
 			sendMessage(tS->commSocket, ".");
 		}
 	}
+
+}
+
+size_t getFileSize(string file) {
+	ifstream fileStream(file.c_str(), fstream::binary);
+
+	fileStream.seekg(0, fileStream.end);
+	size_t size = fileStream.tellg();
+	fileStream.seekg(0);
+
+	fileStream.close();
+	return size;
+}
+
+
+void createListFromMails(threadStruct *tS) {
+
+	initList(L);
+
+	int i = 0;
+	size_t size = 0;
+	string name = "";
+	DIR *dir;
+	struct dirent *ent;
+
+	if ((dir = opendir((tS->mailDir+"/cur/").c_str())) != nullptr) {
+		while ((ent = readdir(dir)) != nullptr) {
+			size = getFileSize(tS->mailDir+"/cur/"+ent->d_name);
+			name = ent->d_name;
+			if (string(ent->d_name) == ".." || string(ent->d_name) == ".") {
+				continue;
+			} else {
+				if (!i) {
+					insertFirst(L, name, size);
+					cout << size << endl;
+				} else {
+					insertAtTheEnd(L, name, size);
+				}
+				i++;
+			}
+		}
+	}
+
 
 }
 
@@ -708,6 +749,9 @@ void executeMailServer(threadStruct *tS) {
 	 **/
 
 	moveNewToCur(tS);
+
+	cout << "Ahoj" << endl;
+	createListFromMails(tS);
 
 }
 
