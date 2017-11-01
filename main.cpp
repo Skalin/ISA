@@ -850,9 +850,10 @@ void *clientThread(void *tS) {
 				cout << op << endl;
 				logConsole(true, false, string(receivedMessage), false);
 			}
+
 		}
 	}
-	return NULL;
+	return nullptr;
 }
 
 
@@ -887,7 +888,6 @@ void createMailCfg(tList *L) {
 	/* maildirdir = dir
 	 * name = name:2, (:2, is already in name) name = returnSubstring(name, ":2,", false)
 	 * **/
-	
 
 	string maildir = mailDir;
 	string name;
