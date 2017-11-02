@@ -1083,7 +1083,7 @@ void siginthandler(int param) {
 
 
 /*
- *
+ * TODO indexing of mails = now starts at 0, should be starting at 1
  *
  */
 int main(int argc, char *argv[]) {
@@ -1103,9 +1103,6 @@ int main(int argc, char *argv[]) {
 		throwException("ERROR: Wrong arguments.");
 	}
 
-
-
-
 	printf("DEBUG INFO\n");
 	cout << "Arguments: " << argc << endl;
 	cout << "Port: " << port << endl;
@@ -1119,12 +1116,13 @@ int main(int argc, char *argv[]) {
 	cout << "PASS: " << serverPass << endl;
 	cout << "Mail Config FILE: " << mailConfig << endl;
 
-
+	// help param was passed? if yes, then print help and end program
 	if (help) {
 		printHelp();
 		exit(EXIT_SUCCESS);
 	}
 
+	// reset param wass passed? if yes, reset mail, if reset was the only param, end program
 	if (reset) {
 		resetMail();
 		if (argc == 2) {
@@ -1133,7 +1131,6 @@ int main(int argc, char *argv[]) {
 	}
 
 	// username and pw from config file
-
 	if (!checkUsersFile(usersFile.c_str(), serverUser, serverPass)) {
 		throwException("ERROR: Wrong format of User file.");
 	}
