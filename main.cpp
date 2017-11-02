@@ -1,4 +1,3 @@
-
 #include <iostream>
 #include <ctime>
 #include <unistd.h>
@@ -11,12 +10,9 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-
 #include <sstream>
 #include <fstream>
 #include <signal.h>
-
-
 #include "lib/md5/md5.cpp"
 
 using namespace std;
@@ -306,7 +302,7 @@ string generatePidTimeStamp(){
  */
 void sendResponse(int socket, bool error, string message) {
 	string response;
-	error ? response = "+OK" : response = "-ERR";
+	error ? response = "-ERR" : response = "+OK";
 	response = response+" "+message+"\r\n";
 	send(socket, response.c_str(), response.size(), 0);
 }
@@ -680,6 +676,7 @@ void rsetOperation(threadStruct *tS) {
 		if (L->Active->nextMail == nullptr) {
 			break;
 		}
+		succ(L);
 	}
 	sendResponse(tS->commSocket, true, "user's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+") octets");
 }
@@ -757,6 +754,28 @@ void listOperation(threadStruct *tS) {
 	sendResponse(tS->commSocket, false, ""+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
 	// TODO send one by one
 }
+
+
+/*
+ * TODO
+ *
+ */
+void uidlOperation(threadStruct *tS) {}
+
+
+/*
+ * TODO
+ *
+ */
+void uidlIndexOperation(threadStruct *tS) {}
+
+
+
+/*
+ * TODO
+ *
+ */
+void topIndexOperation(threadStruct *tS) {}
 
 
 /*
@@ -858,7 +877,7 @@ void executeMailServer(threadStruct *tS) {
 				if (validateRequest(string(received), op)) {
 
 					// operations
-					if (op <= 3) {
+					if (op > 0 && op <= 3) {
 						sendResponse(tS->commSocket, true, "already authorised");
 					} else if (op == 5) {
 						listOperation(tS);
@@ -873,13 +892,13 @@ void executeMailServer(threadStruct *tS) {
 					} else if (op == 10) {
 						deleOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
 					} else if (op == 11) {
-
+						rsetOperation(tS);
 					} else if (op == 12) {
-
+						uidlOperation(tS);
 					} else if (op == 13) {
-
+						uidlIndexOperation(tS);
 					} else if (op == 14) {
-
+						topIndexOperation(tS);
 					} else {
 						sendResponse(tS->commSocket, true, "invalid operation");
 					}
