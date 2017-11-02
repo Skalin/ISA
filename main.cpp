@@ -301,6 +301,7 @@ void sendResponse(int socket, bool error, string message) {
 
 void sendMessage(int socket, string message) {
 
+	message = message+"\r\n";
 	send(socket, message.c_str(), message.size(), 0);
 }
 
@@ -399,7 +400,7 @@ void moveNewToCur(threadStruct *tS) {
 				deleteMail(mailDirCur+ent->d_name);
 			}
 			cout << ent->d_name << endl;
-			copyFile(mailDirNew+ent->d_name, mailDirCur+ent->d_name);
+			copyFile(mailDirNew+ent->d_name, mailDirCur+ent->d_name+":2,");
 			deleteMail(mailDirNew+ent->d_name);
 		}
 	}
@@ -414,8 +415,13 @@ void initList(tList *L) {
 	L->Active = nullptr;
 }
 
+void first(tList *L) {
+	L->Active = L->First;
+}
+
 void disposeList(tList *L) {
-	while (L->First != nullptr) {
+
+	while (L->First != NULL) {
 		mailStructPtr helpMail = new mailStruct;
 
 		helpMail = L->First->nextMail;
@@ -442,11 +448,6 @@ void insertFirst(tList *L, string name, size_t size) {
 }
 
 
-void first(tList *L) {
-	L->Active = L->First;
-}
-
-
 void succ(tList *L) {
 	if (L->Active != nullptr) {
 		L->Active = L->Active->nextMail;
@@ -457,15 +458,15 @@ void succ(tList *L) {
 void copySize(tList *L, int index, size_t *size) {
 	if (L->First == nullptr) {
 	} else {
+		first(L);
 		int i = 0;
 		while (i < index) {
-			first(L);
-			if (L->Active != nullptr) {
+			if (L->Active->nextMail != nullptr) {
 				succ(L);
 			}
 			i++;
 		}
-		*size = L->First->size;
+		*size = L->Active->size;
 	}
 }
 
@@ -519,6 +520,8 @@ void deleteFirst(tList *L) {
 
 void insertAtTheEnd(tList *L, string name, size_t size) {
 
+	first(L);
+
 	while (L->Active->nextMail != nullptr) {
 		succ(L);
 	}
@@ -533,6 +536,8 @@ void insertAtTheEnd(tList *L, string name, size_t size) {
 }
 
 bool checkIfMarkedForDeletion(tList *L, int index) {
+	first(L);
+
 	int i = 0;
 	while (i < index) {
 		succ(L);
@@ -548,14 +553,15 @@ void markForDeletion(threadStruct *tS, tList *L, int index) {
 		sendResponse(tS->commSocket, true, "mail already marked for deletion");
 	} else {
 		L->Active->toDelete = true;
+		sendResponse(tS->commSocket, false, "mail marked for deletion");
 	}
 }
 
 bool checkIndexOfMail(tList *L, int index) {
 	int i = 0;
-
+	first(L);
 	while (i < index) {
-		if (L->Active != nullptr) {
+		if (L->Active->nextMail != nullptr) {
 			succ(L);
 		} else {
 			return false;
@@ -583,7 +589,7 @@ int sumOfMails(tList *L) {
 	int i = 0;
 
 	first(L);
-	while (L->Active != nullptr) {
+	while (L->Active->nextMail != nullptr) {
 		if (!L->Active->toDelete) {
 			i++;
 		}
@@ -612,7 +618,7 @@ void getMailContent(threadStruct *tS, string name) {
 	string line;
 
 	ifstream file;
-	file.open(name);
+	file.open(tS->mailDir+"/cur/"+name);
 	while (getline(file, line)) {
 		sendMessage(tS->commSocket, line);
 	}
@@ -644,6 +650,9 @@ void rsetOperation(threadStruct *tS) {
 		if (L->Active->toDelete) {
 			L->Active->toDelete = false;
 		}
+		if (L->Active->nextMail == nullptr) {
+			break;
+		}
 	}
 	sendResponse(tS->commSocket, true, "user's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+") octets");
 }
@@ -653,20 +662,19 @@ void deleOperation(threadStruct *tS, int index) {
 		sendResponse(tS->commSocket, true, "mail does not exist");
 	} else {
 		markForDeletion(tS, L, index);
-		sendResponse(tS->commSocket, false, "mail marked for deletion");
 	}
 }
 
 void statOperation(threadStruct *tS) {
 	int mails = sumOfMails(L);
 	size_t size = sumOfSizeMails(L);
-
 	sendResponse(tS->commSocket, false, to_string(mails)+" "+to_string(size));
 }
 
-void retrOperation(threadStruct *tS, int index) {
-	string mail = "";
+void noopOperation(threadStruct *tS) {
+}
 
+void retrOperation(threadStruct *tS, int index) {
 	if (!checkIndexOfMail(L, index)) {
 		sendResponse(tS->commSocket, true, "mail does not exist");
 	} else {
@@ -681,6 +689,26 @@ void retrOperation(threadStruct *tS, int index) {
 		}
 	}
 
+}
+
+void listIndexOperation(threadStruct *tS, int index) {
+	if (!checkIndexOfMail(L, index)) {
+		sendResponse(tS->commSocket, true, "mail does not exist");
+	} else {
+		if (checkIfMarkedForDeletion(L, index)) {
+			sendResponse(tS->commSocket, true, "mail marked for deletion");
+		} else {
+			size_t size;
+			copySize(L, index, &size);
+			sendResponse(tS->commSocket, false, to_string(size)+" octets");
+		}
+	}
+
+}
+
+void listOperation(threadStruct *tS) {
+	sendResponse(tS->commSocket, false, ""+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
+	// TODO send one by one
 }
 
 size_t getFileSize(string file) {
@@ -714,7 +742,6 @@ void createListFromMails(threadStruct *tS) {
 			} else {
 				if (!i) {
 					insertFirst(L, name, size);
-					cout << size << endl;
 				} else {
 					insertAtTheEnd(L, name, size);
 				}
@@ -727,12 +754,16 @@ void createListFromMails(threadStruct *tS) {
 }
 
 
+bool validateRequest(string received, int operation) {
+
+	return true;
+}
+
 void executeMailServer(threadStruct *tS) {
 
 	if (mutexerino.try_lock()) {
 		if (checkMailDir(tS->mailDir)) {
 			sendResponse(tS->commSocket, false, "maildrop locked and ready");
-			sendResponse(tS->commSocket, false, "username's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
 		} else {
 			sendResponse(tS->commSocket, true, "maildir not OK");
 			closeConnection(tS->commSocket);
@@ -750,8 +781,52 @@ void executeMailServer(threadStruct *tS) {
 
 	moveNewToCur(tS);
 
-	cout << "Ahoj" << endl;
 	createListFromMails(tS);
+
+	sendResponse(tS->commSocket, false, "username's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
+
+	for(;;) {
+		char received[1024];
+		if (recv(tS->commSocket, received, 1024, 0) <= 0) {
+			break;
+		} else {
+			int op;
+			if ((op = getOperation(received)) != 0) {
+				cout << op << endl;
+				if (validateRequest(string(received), op)) {
+
+					// operations
+					if (op <= 3) {
+						sendResponse(tS->commSocket, true, "already authorised");
+					} else if (op == 5) {
+						listOperation(tS);
+					} else if (op == 6) {
+						listIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+					} else if (op == 7) {
+						noopOperation(tS);
+					} else if (op == 8) {
+						statOperation(tS);
+					} else if (op == 9) {
+						retrOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+					} else if (op == 10) {
+						deleOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+					} else if (op == 11) {
+
+					} else if (op == 12) {
+
+					} else if (op == 13) {
+
+					} else if (op == 14) {
+
+					} else {
+						sendResponse(tS->commSocket, true, "invalid operation");
+					}
+				} else {
+					sendResponse(tS->commSocket, true, "invalid operation");
+				}
+			}
+		}
+	}
 
 }
 
@@ -848,7 +923,6 @@ void *clientThread(void *tS) {
 			} else {
 				sendResponse(tParam->commSocket, true, "invalid operation");
 				cout << op << endl;
-				logConsole(true, false, string(receivedMessage), false);
 			}
 
 		}
@@ -896,7 +970,7 @@ void createMailCfg(tList *L) {
 
 	first(L);
 
-	while (L->Active != NULL) {
+	while (L->Active != nullptr) {
 		name = L->Active->name;
 		file << "name = " << name << endl;
 		file << "dir = " << maildir << endl;
@@ -908,6 +982,7 @@ void createMailCfg(tList *L) {
 
 void siginthandler(int param) {
 	createMailCfg(L);
+	disposeList(L);
 	exit(1);
 }
 
