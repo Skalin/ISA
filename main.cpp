@@ -7,18 +7,10 @@
 #include <string>
 #include <mutex>
 #include <dirent.h>
-
-#ifdef _WIN32
-
-#include <Winsock2.h>
-#include <ws2tcpip.h>
-
-#else
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#endif
 
 #include <sstream>
 #include <fstream>
