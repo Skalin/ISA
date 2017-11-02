@@ -1,9 +1,7 @@
 #include <iostream>
-#include <ctime>
 #include <unistd.h>
 #include <cstring>
 #include <sys/stat.h>
-#include <string>
 #include <mutex>
 #include <dirent.h>
 #include <sys/socket.h>
@@ -81,7 +79,7 @@ bool fileExists(const char *file) {
  */
 bool isDirectory(const char *folder) {
 	struct stat sb;
-	return (fileExists(folder) && S_ISDIR(sb.st_mode));
+	return ((stat(folder, &sb) == 0) && S_ISDIR(sb.st_mode));
 }
 
 
@@ -303,7 +301,11 @@ string generatePidTimeStamp(){
 void sendResponse(int socket, bool error, string message) {
 	string response;
 	error ? response = "-ERR" : response = "+OK";
-	response = response+" "+message+"\r\n";
+	if (message == "") {
+		response = response+"\r\n";
+	} else {
+		response = response+" "+message+"\r\n";
+	}
 	send(socket, response.c_str(), response.size(), 0);
 }
 
@@ -663,7 +665,8 @@ void closeConnection(int socket) {
 
 
 bool checkMailDir(string dir) {
-	return (isDirectory((dir+"/new").c_str()) && isDirectory((dir+"/cur").c_str()) && isDirectory((dir+"/tmp").c_str()));
+	cout << "Checking maildir " << endl;
+ 	return (isDirectory((dir+"/new").c_str()) && isDirectory((dir+"/cur").c_str()) && isDirectory((dir+"/tmp").c_str()));
 }
 
 void rsetOperation(threadStruct *tS) {
@@ -702,6 +705,7 @@ void statOperation(threadStruct *tS) {
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
  */
 void noopOperation(threadStruct *tS) {
+	sendResponse(tS->commSocket, false, "");
 }
 
 
@@ -735,7 +739,7 @@ void listIndexOperation(threadStruct *tS, int index) {
  */
 void retrOperation(threadStruct *tS, int index) {
 	if (!checkIndexOfMail(L, index)) {
-		sendResponse(tS->commSocket, true, "mail does not exist");
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
 	} else {
 		if (checkIfMarkedForDeletion(L, index)) {
 			sendResponse(tS->commSocket, true, "mail marked for deletion");
@@ -757,10 +761,43 @@ void listOperation(threadStruct *tS) {
 
 
 /*
+ * Function creates a unique md5 hash name consisting of maildir, cur folder and mailname
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ * @param string mailName name of the mail that is being hashed
+ * @returns string unique md5 hash hash for any mail in the system
+ */
+string hashForUidl(threadStruct *tS, string mailName) {
+	return md5(tS->mailDir+"/cur/"+mailName);
+}
+
+
+
+
+/*
  * TODO
  *
  */
-void uidlOperation(threadStruct *tS) {}
+void uidlOperation(threadStruct *tS) {
+	int num = sumOfMails(L);
+	if (num == 0) {
+		sendResponse(tS->commSocket, false, "0 messages in maildrop");
+		sendMessage(tS->commSocket, ".");
+	} else if (num > 0) {
+		sendResponse(tS->commSocket, false, num+" messages");
+
+		// take mails one by one, hash them and send them with id
+		int i = 1;
+		first(L);
+		while (L->Active->nextMail != nullptr) {
+			if (!L->Active->toDelete) {
+				sendResponse(tS->commSocket, false, i+" "+hashForUidl(tS, L->Active->name));
+				i++;
+			}
+			succ(L);
+		}
+	}
+}
 
 
 /*
@@ -1194,7 +1231,7 @@ int main(int argc, char *argv[]) {
 	printf("Server is online! It will be now waiting for request.\n");
 
 	socklen_t clientlen = sizeof(clientaddr);
-	while (1) {
+	while (true) {
 		int commSocket;
 
 		if ((commSocket = accept(serverSocket, (struct sockaddr *) &clientaddr, &clientlen)) > 0) {
