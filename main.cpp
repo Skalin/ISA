@@ -1003,7 +1003,10 @@ bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHa
 
 
 /*
- * TODO
+ * Function serves as a client thread operation. Every client that connects to the server is given a separate thread, function authorises user and calls mail server execution function
+ *
+ * @param void *tS threadStruct given by void, later on retyped
+ * @return nullptr
  */
 void *clientThread(void *tS) {
 
