@@ -779,6 +779,14 @@ void topIndexOperation(threadStruct *tS) {}
 
 
 /*
+ * TODO
+ */
+void quitOperation(threadStruct *tS) {
+
+}
+
+
+/*
  * Function returns size of file in octets (size_t)
  *
  * @param string file name of the file
@@ -879,6 +887,9 @@ void executeMailServer(threadStruct *tS) {
 					// operations
 					if (op > 0 && op <= 3) {
 						sendResponse(tS->commSocket, true, "already authorised");
+					} else if (op == 4) {
+						quitOperation(tS);
+						closeConnection(tS->commSocket);
 					} else if (op == 5) {
 						listOperation(tS);
 					} else if (op == 6) {
