@@ -63,42 +63,8 @@ typedef struct {
 
 tList *L = new tList;
 
-
-string getCurrDate() {
-
-	char multiByteString[100];
-	string dateTime;
-
-	time_t t = time(nullptr);
-	if (strftime(multiByteString, sizeof(multiByteString), "%T", localtime(&t))) {
-		dateTime = multiByteString;
-	} else {
-		cout << ("Error: Date could not be resolved.") << endl;
-	}
-
-	return dateTime;
-}
-
-void logConsole(bool logging, bool date, string msg, bool std) {
-	if (std) {
-		if (date) {
-			cerr << getCurrDate()+": "+msg << endl;
-		} else {
-			cerr << msg << endl;
-		}
-	} else {
-		if (logging) {
-			if (date) {
-				cout << getCurrDate()+": "+msg;
-			} else {
-				cout << msg;
-			}
-		}
-	}
-}
-
 /*
- * Function prints a error message on cerr and exits program
+ * Function prints an error message on cerr and exits program
  *
  * @param const char *message message to be printed to cerr
  */
@@ -107,16 +73,35 @@ void throwException(const char *message) {
 	exit(EXIT_FAILURE);
 }
 
-bool fileExists(const char *fd) {
-	
+/*
+ * Function checks if the folder is regular folder, it is typically called after itemExists(), it shouldn't be called without this function
+ *
+ * @param const char *file name of the folder
+ * @returns true if folder exists and is regular folder, false otherwise
+ */
+bool fileExists(const char *file) {
 	struct stat sb;
-	
-	return (stat(fd, &sb) == 0);
-	
+	return (stat(file, &sb) == 0);
 }
 
-void printHelp() {
 
+/*
+ * Function checks if the folder is regular folder, it is typically called after itemExists(), it shouldn't be called without this function
+ *
+ * @param const char *folder name of the folder
+ * @returns true if folder exists and is regular folder, false otherwise
+ */
+bool isDirectory(const char *folder) {
+	struct stat sb;
+	return (fileExists(folder) && S_ISDIR(sb.st_mode));
+}
+
+
+/*
+ * Function prints help message on cout and informs user about usage of program
+ *
+ */
+void printHelp() {
 	// TODO napoveda
 	cout << endl << "Developer: Dominik Skala (xskala11)" << endl;
 	cout << "Task name: ISA - POP3 server" << endl;
@@ -128,6 +113,12 @@ void printHelp() {
 	cout << "Arguments:" << endl;
 }
 
+
+/*
+ * Function checks if amount of params is ok
+ *
+ * @param int argc amount of arguments -1
+ */
 bool checkParams(int argc) {
 
 	// TODO
@@ -138,6 +129,19 @@ bool checkParams(int argc) {
 	return true;
 }
 
+
+/*
+ * Function parses params and stores their value in arguments
+ *
+ * @param int argc amount of arguments
+ * @param char *argv[] array of arguments
+ * @param bool &help address of variable where the value of help param will be stored
+ * @param bool &isHashed address of variable where the value of which form of authorisation is available will be stored
+ * @param bool &reset address of variable where the value whether the reset will be applied will be stored
+ * @param string &mailDir address of variable where the value of path to maildir will be stored
+ * @param int &port address of variable where the value of port will be stored
+ * @returns bool true if params are ok, false otherwise
+ */
 bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset, string &usersFile, string &mailDir, int &port) {
 	int c;
 
@@ -177,6 +181,15 @@ bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset
 	return true;
 }
 
+
+/*
+ * Function returns substring from the given string by delimiter and depending on way of search
+ *
+ * @param string String which is searched
+ * @param string delimiter which is used to split the String
+ * @param bool way - true will parse substring to the right, false is to the left
+ * @returns string parsed substring, if nothing is found, returns "", else returns the parsed string
+ */
 string returnSubstring(string String, string delimiter, bool way) {
 	
 	string subString = "";
@@ -191,22 +204,23 @@ string returnSubstring(string String, string delimiter, bool way) {
 	return subString;
 }
 
-bool isDirectory(const char *folder) {
-	struct stat sb;
 
-	return ((stat(folder, &sb) == 0) && S_ISDIR(sb.st_mode));
-}
-
+/*
+ * Function checks validity of user file
+ *
+ * @param const char *name name of the file
+ * @param string &user address of variable where the value of username will be stored
+ * @param string &pass address of variable where the value of password will be stored
+ * @returns true if validation was successful, false otherwise
+ */
 bool checkUsersFile(const char *name, string &user, string &pass) {
-	
+
+	string line;
+
 	if (!fileExists(name)) {
 		return false;
 	}
-	
-	string file = name;
-	string line;
-	
-	ifstream users (file.c_str());
+	ifstream users (name);
 	if (users.is_open()) {
 		while (getline(users, line)) {
 			if (returnSubstring(line, "username = ", true) != "") {
@@ -219,13 +233,17 @@ bool checkUsersFile(const char *name, string &user, string &pass) {
 			}
 		}
 	}
-	
 	users.close();
-	
 	return true;
 }
 
 
+/*
+ * Function checks the received message and parses the correct name of operation. Depending of the type, it returns a value of operation specified in documentation
+ *
+ * @param string message message that is being parsed
+ * @returns int operation integer representation of operation to remember and check it betterS
+ */
 int getOperation(string message) {
 
 	string op = returnSubstring(message, "\r\n", false);
@@ -263,85 +281,87 @@ int getOperation(string message) {
 	}
 }
 
+
+/*
+ * Function generates a timestamp with hostname and pid in it
+ * Time in this function is a amount of seconds that passed since 1.1.1970, pid is a current process id, hostname is hostname of the server
+ *
+ * @returns string pidTimeStamp in format <PID.time@hostname>
+ */
 string generatePidTimeStamp(){
+	char hostname[512];
 	int pid = getpid();
+	struct hostent *host;
+	time_t currTime = time(nullptr);
 	
 	ostringstream pidNum;
 	pidNum << pid;
 	string pidStr = pidNum.str();
-	
-	
-	char hostname[512];
+
 	hostname[511] = '\0';
 	gethostname(hostname,512);
-	struct hostent *host;
 	host = gethostbyname(hostname);
-	
-	time_t currTime = time(nullptr);
-	
 	return ("<"+pidStr+"."+to_string(currTime)+"@"+host->h_name+">");
-	
 }
 
+
+/*
+ * Function sends response to the client with a +OK or -ERR prefix
+ *
+ * @param int socket defines where to send the message
+ * @param bool error defines whether the error has occured or not (true ERROR, false ALRIGHT)
+ * @param string message message that will be sent to the client after the prefix
+ */
 void sendResponse(int socket, bool error, string message) {
-	
-
 	string response;
-	if (!error) {
-		response = "+OK";
-	} else {
-		response = "-ERR";
-		
-	}
-
+	error ? response = "+OK" : response = "-ERR";
 	response = response+" "+message+"\r\n";
-	
 	send(socket, response.c_str(), response.size(), 0);
 }
 
-void sendMessage(int socket, string message) {
 
+/*
+ * Function sends only a message to the client, without additional info
+ *
+ * @param int socket defines where to send the message
+ * @param string message that will be sent to the client
+ */
+void sendMessage(int socket, string message) {
 	message = message+"\r\n";
 	send(socket, message.c_str(), message.size(), 0);
 }
 
 
+/*
+ * Simple function for checking usernames
+ *
+ * @param string clientUser user received from client
+ * @param string serverUser user on server
+ * @returns true if clients are ok, false otherwise
+ */
 bool checkUser(string clientUser, string serverUser) {
-
 	return (clientUser == serverUser);
 }
 
 
+/*
+ * Simple function for checking user password
+ *
+ * @param string clientPass user received from client
+ * @param string serverPass user on server
+ * @returns true if client passwords are ok, false otherwise
+ */
 bool authenticateUser(string clientPass, string serverPass) {
-
 	return (clientPass == serverPass);
 }
 
 
-
-int numberOfFiles(string dir) {
-
-	int sum = 0;
-	DIR *directory;
-	struct dirent *ent;
-
-	if ((directory = opendir(dir.c_str())) != nullptr) {
-
-		while ((ent = readdir(directory)) != nullptr) {
-			if(string(ent->d_name) == ".." || string(ent->d_name) == ".")
-				continue;
-			sum++;
-		}
-
-		closedir(directory);
-
-	} else {
-		logConsole(true, false, "Error: Number of files from "+dir+" could not be resolved.", true);
-	}
-	return sum;
-
-}
-
+/*
+ * Function copies file from one path to another
+ *
+ * @param string from where the file is stored
+ * @param string to where we want to paste the file
+ */
 void copyFile(string from, string to) {
 	ifstream src(from.c_str(), ios::binary);
 	ofstream dst(to.c_str(), ios::binary);
@@ -349,12 +369,15 @@ void copyFile(string from, string to) {
 	dst << src.rdbuf();
 }
 
-string getCwd(){
-	char buffer[1024];
-	return getcwd(buffer, sizeof(buffer));
 
-}
-
+/*
+ * Function checks if the mail exists in the folder
+ *
+ * @param string dir folder of the server
+ * @param string name name of the mail
+ *
+ * @returns true if mail exists, false otherwise
+ */
 bool mailExists(string dir, string name) {
 	DIR *directory;
 	struct dirent *ent;
@@ -373,10 +396,22 @@ bool mailExists(string dir, string name) {
 	return false;
 }
 
+
+/*
+ * Function deletes the mail from the given path
+ *
+ * @param string path full path of the email containing also its name
+ */
 void deleteMail(string path) {
 	remove(path.c_str());
 }
 
+
+/*
+ * Function moves all mails from maildir/new to maildir/cur, during that it renames the mail so it containes the ":2," flag
+ *
+ * @param threadStruct *tS thread structure containing mail info
+ */
 void moveNewToCur(threadStruct *tS) {
 
 	DIR *dir;
@@ -671,26 +706,22 @@ void statOperation(threadStruct *tS) {
 	sendResponse(tS->commSocket, false, to_string(mails)+" "+to_string(size));
 }
 
+
+/*
+ * Function does just nothing, typical NOOP, it is here just so the application looks nice and that every operation has its own function
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ */
 void noopOperation(threadStruct *tS) {
 }
 
-void retrOperation(threadStruct *tS, int index) {
-	if (!checkIndexOfMail(L, index)) {
-		sendResponse(tS->commSocket, true, "mail does not exist");
-	} else {
-		if (checkIfMarkedForDeletion(L, index)) {
-			sendResponse(tS->commSocket, true, "mail marked for deletion");
-		} else {
-			size_t size;
-			copySize(L, index, &size);
-			sendResponse(tS->commSocket, false, to_string(size)+" octets");
-			getMailContent(tS, returnNameOfMail(L, index));
-			sendMessage(tS->commSocket, ".");
-		}
-	}
 
-}
-
+/*
+ * Function returns the params of mail on certain index
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ * @param int index index of mail we are looking for
+ */
 void listIndexOperation(threadStruct *tS, int index) {
 	if (!checkIndexOfMail(L, index)) {
 		sendResponse(tS->commSocket, true, "mail does not exist");
@@ -706,11 +737,42 @@ void listIndexOperation(threadStruct *tS, int index) {
 
 }
 
+
+/*
+ * Function returns info about the email almost the same as the list, but it also returns the content of mail including its header
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ * @param int index index of mail we are looking for
+ */
+void retrOperation(threadStruct *tS, int index) {
+	if (!checkIndexOfMail(L, index)) {
+		sendResponse(tS->commSocket, true, "mail does not exist");
+	} else {
+		if (checkIfMarkedForDeletion(L, index)) {
+			sendResponse(tS->commSocket, true, "mail marked for deletion");
+		} else {
+			listIndexOperation(tS, index);
+			getMailContent(tS, returnNameOfMail(L, index));
+			sendMessage(tS->commSocket, ".");
+		}
+	}
+
+}
+
+
+//TODO commentary
 void listOperation(threadStruct *tS) {
 	sendResponse(tS->commSocket, false, ""+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
 	// TODO send one by one
 }
 
+
+/*
+ * Function returns size of file in octets (size_t)
+ *
+ * @param string file name of the file
+ * @returns size of the file in octets
+ */
 size_t getFileSize(string file) {
 	ifstream fileStream(file.c_str(), fstream::binary);
 
@@ -723,6 +785,11 @@ size_t getFileSize(string file) {
 }
 
 
+/*
+ * Function gets all emails from maildir and fills them into the global list of mails
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ */
 void createListFromMails(threadStruct *tS) {
 
 	initList(L);
@@ -754,11 +821,21 @@ void createListFromMails(threadStruct *tS) {
 }
 
 
+/*
+ * Function validates a request depending on operation
+ *
+ * @param string received message that is being validated
+ * @param int operation operation that should be processed
+ */
 bool validateRequest(string received, int operation) {
 
 	return true;
 }
 
+
+/*
+ * TODO
+ */
 void executeMailServer(threadStruct *tS) {
 
 	if (mutexerino.try_lock()) {
@@ -771,13 +848,6 @@ void executeMailServer(threadStruct *tS) {
 	} else {
 		sendResponse(tS->commSocket, true, "permission denied");
 	}
-
-
-	/* TODO operace na mailech, ziskani obsahu mailu, nahrani do pole a do tmp souboru
-	 * velikost v oktetech = velikost v bytech!!!!
-	 *
-	 *
-	 **/
 
 	moveNewToCur(tS);
 
@@ -831,6 +901,17 @@ void executeMailServer(threadStruct *tS) {
 }
 
 
+/*
+ * Function authorises user depending on his credentials. It selectes between two modes, hashed and unhashed mode
+ * If the param -c was passed to the program, it will accept only nonhashed version of password, otherwise it accepts only hashed version of password
+ * Hashing is done on the client side using md5 depending on the pidTimeStamp that the server sends
+ *
+ * @param int op value of operation to check correct order
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ * @param char *receivedMessage messsage that is being parsed and from which the authorisation data are taken
+ * @param bool isHashed param that selects mode of authorisation (hashed/non-hashed)
+ * @returns bool true if user is authorised correctly, false otherwise
+ */
 bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHashed) {
 	if (!isHashed) {
 		if (op == 1) {
@@ -899,6 +980,9 @@ bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHa
 }
 
 
+/*
+ * TODO
+ */
 void *clientThread(void *tS) {
 
 	char receivedMessage[1024];
@@ -931,6 +1015,9 @@ void *clientThread(void *tS) {
 }
 
 
+/*
+ * TODO
+ */
 void resetMail() {
 
 	string line;
@@ -957,11 +1044,14 @@ void resetMail() {
 
 }
 
+
+/*
+ * Function creates a mail config, that is saved in the same folder as the server, this function is fundamental for -reset param
+ * Format of this config is following:
+ * maildirdir = dir
+ * name = name:2, (:2, is already in name) name = returnSubstring(name, ":2,", false)
+ * **/
 void createMailCfg(tList *L) {
-	// TODO get all mails from structures and save it in format
-	/* maildirdir = dir
-	 * name = name:2, (:2, is already in name) name = returnSubstring(name, ":2,", false)
-	 * **/
 
 	string maildir = mailDir;
 	string name;
@@ -980,6 +1070,11 @@ void createMailCfg(tList *L) {
 	file.close();
 }
 
+/*
+ * Function checks whether sigint was passed, if yes, the server correctly ends its process
+ *
+ * @param int param not used
+ */
 void siginthandler(int param) {
 	createMailCfg(L);
 	disposeList(L);
@@ -987,6 +1082,10 @@ void siginthandler(int param) {
 }
 
 
+/*
+ *
+ *
+ */
 int main(int argc, char *argv[]) {
 
 	signal(SIGINT, siginthandler);
