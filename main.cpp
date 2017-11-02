@@ -853,7 +853,9 @@ bool validateRequest(string received, int operation) {
 
 
 /*
- * TODO
+ * Function executes the mail servers, first of all it tries to lock the maildir by mutex, if the lock is successful, all mails from new are moved to cur, list from mails is created. After that, server responds to clients with amount of mails and their complete size. After the "init" the server waits for requests and works on these operations.
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
  */
 void executeMailServer(threadStruct *tS) {
 
