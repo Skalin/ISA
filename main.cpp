@@ -446,7 +446,7 @@ void first(tList *L) {
 
 void disposeList(tList *L) {
 
-	while (L->First != NULL) {
+	while (L->First != nullptr) {
 		mailStructPtr helpMail = new mailStruct;
 
 		helpMail = L->First->nextMail;
@@ -1305,7 +1305,7 @@ int main(int argc, char *argv[]) {
 			tS->pidTimeStamp = generatePidTimeStamp();
 
 
-			pthread_create(&thread, NULL, clientThread, tS);
+			pthread_create(&thread, nullptr, clientThread, tS);
 
 		} else {
 			break;
