@@ -392,7 +392,7 @@ bool mailExists(string dir, string name) {
  *
  * @param string path full path of the email containing also its name
  */
-void deleteMail(string path) {
+void deleteFile(string path) {
 	remove(path.c_str());
 }
 
@@ -422,11 +422,11 @@ void moveNewToCur(threadStruct *tS) {
 			if (mailExists(mailDirCur, ent->d_name)) {
 				cout << "MAIL EXISTS" << endl;
 				cout << mailDirCur+ent->d_name << endl;
-				deleteMail(mailDirCur+ent->d_name);
+				deleteFile(mailDirCur+ent->d_name);
 			}
 			cout << ent->d_name << endl;
 			copyFile(mailDirNew+ent->d_name, mailDirCur+ent->d_name+":2,");
-			deleteMail(mailDirNew+ent->d_name);
+			deleteFile(mailDirNew+ent->d_name);
 		}
 	}
 
@@ -484,7 +484,7 @@ void copySize(tList *L, int index, size_t *size) {
 	if (L->First == nullptr) {
 	} else {
 		first(L);
-		int i = 0;
+		int i = 1;
 		while (i < index) {
 			if (L->Active->nextMail != nullptr) {
 				succ(L);
@@ -496,32 +496,33 @@ void copySize(tList *L, int index, size_t *size) {
 }
 
 void copyName(tList *L, int index, string *name) {
+
 	if (L->First == nullptr) {
 	} else {
+		first(L);
 		int i = 0;
 		while (i < index) {
-			first(L);
-			if (L->Active != nullptr) {
+			if (L->Active->nextMail != nullptr) {
 				succ(L);
 			}
 			i++;
 		}
-		*name = L->First->name;
+		*name = L->Active->name;
 	}
 }
 
 void copyToDelete(tList *L, int index, bool *toDelete) {
 	if (L->First == nullptr) {
 	} else {
-		int i = 0;
+		first(L);
+		int i = 1;
 		while (i < index) {
-			first(L);
-			if (L->Active != nullptr) {
+			if (L->Active->nextMail != nullptr) {
 				succ(L);
 			}
 			i++;
 		}
-		*toDelete = L->First->toDelete;
+		*toDelete = L->Active->toDelete;
 	}
 }
 
@@ -563,7 +564,7 @@ void insertAtTheEnd(tList *L, string name, size_t size) {
 bool checkIfMarkedForDeletion(tList *L, int index) {
 	first(L);
 
-	int i = 0;
+	int i = 1;
 	while (i < index) {
 		succ(L);
 		i++;
@@ -582,23 +583,39 @@ void markForDeletion(threadStruct *tS, tList *L, int index) {
 	}
 }
 
-bool checkIndexOfMail(tList *L, int index) {
+
+
+
+int sumOfMails(tList *L) {
 	int i = 0;
+
 	first(L);
-	while (i < index) {
-		if (L->Active->nextMail != nullptr) {
-			succ(L);
-		} else {
-			return false;
+	while (L->Active != nullptr) {
+		if (!L->Active->toDelete) {
+			i++;
 		}
-		i++;
+		succ(L);
 	}
 
-	return true;
+	return i;
 }
 
+
+bool checkIndexOfMail(tList *L, int index) {
+
+	int maxIndex = 1;
+	first(L);
+	while (L->Active != nullptr) {
+		succ(L);
+		maxIndex++;
+	}
+
+	return (index <= maxIndex && index > 0);
+}
+
+
 string returnNameOfMail(tList *L, int index) {
-	int i = 0;
+	int i = 1;
 
 	first(L);
 
@@ -610,19 +627,6 @@ string returnNameOfMail(tList *L, int index) {
 	return L->Active->name;
 }
 
-int sumOfMails(tList *L) {
-	int i = 0;
-
-	first(L);
-	while (L->Active->nextMail != nullptr) {
-		if (!L->Active->toDelete) {
-			i++;
-		}
-		succ(L);
-	}
-
-	return i;
-}
 
 size_t sumOfSizeMails(tList *L) {
 	size_t size = 0;
@@ -681,12 +685,12 @@ void rsetOperation(threadStruct *tS) {
 		}
 		succ(L);
 	}
-	sendResponse(tS->commSocket, true, "user's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+") octets");
+	sendResponse(tS->commSocket, false, "user's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+") octets");
 }
 
 void deleOperation(threadStruct *tS, int index) {
 	if (!checkIndexOfMail(L, index)) {
-		sendResponse(tS->commSocket, true, "mail does not exist");
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
 	} else {
 		markForDeletion(tS, L, index);
 	}
@@ -700,7 +704,7 @@ void statOperation(threadStruct *tS) {
 
 
 /*
- * Function does just nothing, typical NOOP, it is here just so the application looks nice and that every operation has its own function
+ * Function does just nothing, typical NOOP, it is here just so the application looks nice and that every operation has its own function, sends blank response to client
  *
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
  */
@@ -717,7 +721,7 @@ void noopOperation(threadStruct *tS) {
  */
 void listIndexOperation(threadStruct *tS, int index) {
 	if (!checkIndexOfMail(L, index)) {
-		sendResponse(tS->commSocket, true, "mail does not exist");
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
 	} else {
 		if (checkIfMarkedForDeletion(L, index)) {
 			sendResponse(tS->commSocket, true, "mail marked for deletion");
@@ -753,10 +757,30 @@ void retrOperation(threadStruct *tS, int index) {
 }
 
 
-//TODO commentary
+/*
+ * Function takes all e-mails, sums nondeleted and sums their size and sends it to the client, after that, the server sends size of every single messages one by one
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ */
 void listOperation(threadStruct *tS) {
-	sendResponse(tS->commSocket, false, ""+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
-	// TODO send one by one
+	int sum = sumOfMails(L);
+	sendResponse(tS->commSocket, false, ""+to_string(sum)+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
+
+
+	// take mails one by one, hash them and send them with id
+	int index = 1;
+	int localIndex = index;
+	while (index <= sum) {
+		if (!checkIfMarkedForDeletion(L, index)) {
+			size_t size;
+			copySize(L, index, &size);
+			sendMessage(tS->commSocket, to_string(localIndex)+" "+to_string(size));
+			localIndex++;
+		}
+		index++;
+	}
+	sendMessage(tS->commSocket, ".");
+
 }
 
 
@@ -772,47 +796,80 @@ string hashForUidl(threadStruct *tS, string mailName) {
 }
 
 
-
-
 /*
- * TODO
+ * Function generates a unique md5 hash for every mail in maildir and sends it to the client
  *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
  */
 void uidlOperation(threadStruct *tS) {
-	int num = sumOfMails(L);
-	if (num == 0) {
+	int sum = sumOfMails(L);
+	if (sum == 0) {
 		sendResponse(tS->commSocket, false, "0 messages in maildrop");
 		sendMessage(tS->commSocket, ".");
-	} else if (num > 0) {
-		sendResponse(tS->commSocket, false, num+" messages");
+	} else if (sum > 0) {
+		sendResponse(tS->commSocket, false, to_string(sum)+" messages");
 
 		// take mails one by one, hash them and send them with id
-		int i = 1;
-		first(L);
-		while (L->Active->nextMail != nullptr) {
-			if (!L->Active->toDelete) {
-				sendResponse(tS->commSocket, false, i+" "+hashForUidl(tS, L->Active->name));
-				i++;
+		int index = 1;
+		int localIndex = index;
+		while (index <= sum) {
+			if (!checkIfMarkedForDeletion(L, index)) {
+				string mailName;
+				copyName(L, index, &mailName);
+				cout << mailName << endl;
+				sendResponse(tS->commSocket, false, to_string(localIndex)+" "+hashForUidl(tS, mailName));
+				localIndex++;
 			}
-			succ(L);
+			index++;
 		}
+		sendMessage(tS->commSocket, ".");
 	}
 }
 
 
 /*
- * TODO
+ * Function generates a unique md5 hash for mail on index given in second parameter in maildir and sends it to the client
  *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ * @param int index index of a mail
  */
-void uidlIndexOperation(threadStruct *tS) {}
+void uidlIndexOperation(threadStruct *tS, int index) {
+	if (!checkIndexOfMail(L, index)) {
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
+	} else {
+		if (!checkIfMarkedForDeletion(L, index)) {
+			string mailName;
+			copyName(L, index, &mailName);;
+			sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(tS, mailName));
+		} else {
+			sendResponse(tS->commSocket, true, "mail does not exist");
+		}
+	}
+}
 
 
 
 /*
- * TODO
+ * Function takes the body of the e-mail (without header) and returns rows of lines
  *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ * @param int index index of a mail
+ * @param int rows number of rows requested from mail
  */
-void topIndexOperation(threadStruct *tS) {}
+void topIndexOperation(threadStruct *tS, int index, int rows) {
+	if (!checkIndexOfMail(L, index)) {
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
+	} else {
+		if (!checkIfMarkedForDeletion(L, index)) {
+
+
+
+			sendResponse(tS->commSocket, false, "");
+		} else {
+			sendResponse(tS->commSocket, true, "mail does not exist");
+		}
+	}
+}
 
 
 /*
@@ -911,7 +968,7 @@ void executeMailServer(threadStruct *tS) {
 
 	createListFromMails(tS);
 
-	sendResponse(tS->commSocket, false, "username's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
+	sendResponse(tS->commSocket, false, "user's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
 
 	for(;;) {
 		char received[1024];
@@ -946,9 +1003,10 @@ void executeMailServer(threadStruct *tS) {
 					} else if (op == 12) {
 						uidlOperation(tS);
 					} else if (op == 13) {
-						uidlIndexOperation(tS);
+						uidlIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
 					} else if (op == 14) {
-						topIndexOperation(tS);
+						// TODO
+						topIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr), 1);
 					} else {
 						sendResponse(tS->commSocket, true, "invalid operation");
 					}
@@ -1103,7 +1161,7 @@ void resetMail() {
 			i++;
 		}
 
-	remove(mailConfig.c_str());
+	deleteFile(mailConfig);
 	}
 
 }
@@ -1148,7 +1206,7 @@ void siginthandler(int param) {
 
 /*
  * TODO indexing of mails = now starts at 0, should be starting at 1
- *
+ * TODO clean all cout <<
  */
 int main(int argc, char *argv[]) {
 
@@ -1228,7 +1286,6 @@ int main(int argc, char *argv[]) {
 	if ((listen(serverSocket, 1)) < 0) {
 		throwException("ERROR: Could not start listening on port.\n");
 	}
-	printf("Server is online! It will be now waiting for request.\n");
 
 	socklen_t clientlen = sizeof(clientaddr);
 	while (true) {
@@ -1246,8 +1303,6 @@ int main(int argc, char *argv[]) {
 			tS->mailDir= mailDir;
 			tS->commSocket = commSocket;
 			tS->pidTimeStamp = generatePidTimeStamp();
-
-			cout << "TMSTMP: " << tS->pidTimeStamp << endl;
 
 
 			pthread_create(&thread, NULL, clientThread, tS);
