@@ -137,7 +137,6 @@ bool checkParams(int argc) {
  */
 bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset, string &usersFile, string &mailDir, int &port) {
 	int c;
-
 	// TODO osetreni argumentu
 
 	while ((c = getopt(argc, argv, ":hcra:p:d:")) != -1) {
@@ -161,13 +160,13 @@ bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset
 				reset = true;
 				break;
 			case ':':
-				throwException("ERROR: Wrong 1 arguments.");
+				throwException("ERROR: Wrong arguments.");
 				return false;
 			case '?':
-				throwException("ERROR: Wrong 2 arguments.");
+				throwException("ERROR: Wrong arguments.");
 				return false;
 			default:
-				throwException("ERROR: Wrong 3 arguments.");
+				throwException("ERROR: Wrong arguments.");
 				return false;
 		}
 	}
