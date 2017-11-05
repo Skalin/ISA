@@ -90,15 +90,20 @@ bool isDirectory(const char *folder) {
  *
  */
 void printHelp() {
-	// TODO napoveda
-	cout << endl << "Developer: Dominik Skala (xskala11)" << endl;
+	cout << "\r\nDeveloper: Dominik Skala (xskala11)" << endl;
 	cout << "Task name: ISA - POP3 server" << endl;
-	cout << "Subject: ISA (2017/2018)" << endl << endl << endl;
-	cout
-			<< "POP3 Server defined and able to handle single user."
-			<< endl << endl << endl;
-	cout << "Usage: popser IP" << endl;
+	cout << "Subject: ISA (2017/2018)\r\n\r\n" << endl;
+	cout << "Description:" << endl;
+	cout << "\tPOP3 Server able to handle single user. Handles standard POP3 operations, like RETR, TOP, etc. More information can be found in documentation.\r\n\r\n" <<  endl;
+	cout << "Usage:" << endl;
+	cout << "\t./popser [-h] [-a PATH] [-c] [-p PORT] [-d PATH] [-r]" << endl;
 	cout << "Arguments:" << endl;
+	cout << "\t[-h]\t\tPrints the help and ends the program. Can be used with any other param, nevertheless, if this param is used, the program ends immediately after printing help." << endl;
+	cout << "\t[-c]\t\tSelects type of authentification of user. If the param is passed to the program, server accepts raw passwords, if the param is not passed, server accepts only hashed version. More in documentation." << endl;
+	cout << "\t[-r]\t\tIf the arguments is given, the server resets and returns all mails to the folders before the start initial start of the mail server." << endl;
+	cout << "\t[-a PATH]\tSpecifies the path to the auth file, which contains login information of single user. Must be used with -p and -d arguments. Arguments: -h, -c and -r are optional." << endl;
+	cout << "\t[-p PORT]\tSpecifies the port on which the server will run. Must be used with -a and -d arguments. Arguments: -h, -c and -r are optional." << endl;
+	cout << "\t[-d PATH]\tSpecifies the path to the Maildir, which must contain /cur, /new and /tmp folders. Also should contain all mails. Must be used with -p and -a arguments. Arguments: -h, -c and -r are optional." << endl;
 }
 
 
@@ -1258,8 +1263,6 @@ int main(int argc, char *argv[]) {
 	cout << "usersFile VAL: " << usersFile << endl;
 	cout << "port VAL: " << port << endl;
 	cout << "isHashed VAL: " << isHashed << endl;
-	cout << "USER: " << serverUser << endl;
-	cout << "PASS: " << serverPass << endl;
 	cout << "Mail Config FILE: " << mailConfig << endl;
 
 	// help param was passed? if yes, then print help and end program
@@ -1280,6 +1283,10 @@ int main(int argc, char *argv[]) {
 	if (!checkUsersFile(usersFile.c_str(), serverUser, serverPass)) {
 		throwException("ERROR: Wrong format of User file.");
 	}
+
+
+	cout << "USER: " << serverUser << endl;
+	cout << "PASS: " << serverPass << endl;
 
 	// we will create and open a socket
 	int serverSocket;
