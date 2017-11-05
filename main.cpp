@@ -95,7 +95,7 @@ void printHelp() {
 	cout << "Task name: ISA - POP3 server" << endl;
 	cout << "Subject: ISA (2017/2018)" << endl << endl << endl;
 	cout
-			<< "Math operations solving client can be only used in cooperation with server, that is sending clients their math operations, which all clients solve and send results back."
+			<< "POP3 Server defined and able to handle single user."
 			<< endl << endl << endl;
 	cout << "Usage: popser IP" << endl;
 	cout << "Arguments:" << endl;
@@ -635,25 +635,33 @@ size_t sumOfSizeMails(tList *L) {
 }
 
 
-void getMailContent(threadStruct *tS, string name) {
-	string returnedString;
+void sendMail(threadStruct *tS, string name, int lines) {
+	string line;
+	bool header = true;
+	int i = 1;
+
+	ifstream file;
+	file.open(tS->mailDir+"/cur/"+name);
+	while (getline(file, line) && i <= lines) {
+		if (line == "" && header) {
+			header = false;
+			continue;
+		}
+		if (line != "" && header) {
+			continue;
+		}
+		sendMessage(tS->commSocket, line);
+		i++;
+	}
+}
+
+void sendMailWithHeader(threadStruct *tS, string name) {
 	string line;
 
 	ifstream file;
 	file.open(tS->mailDir+"/cur/"+name);
-	// TODO split into two functions, one just get whole mail and send and one get amount of lanes after header and sent
-	if (true) {
-		while (getline(file, line)) {
-			sendMessage(tS->commSocket, line);
-		}
-	} else {
-		while (getline(file, line)) {
-			if (line != "") continue;
-			else break;
-		}
-		while (getline(file, line)) {
-			sendMessage(tS->commSocket, line);
-		}
+	while (getline(file, line)) {
+		sendMessage(tS->commSocket, line);
 	}
 
 	file.close();
@@ -753,7 +761,7 @@ void retrOperation(threadStruct *tS, int index) {
 			sendResponse(tS->commSocket, true, "mail marked for deletion");
 		} else {
 			listIndexOperation(tS, index);
-			getMailContent(tS, returnNameOfMail(L, index));
+			sendMailWithHeader(tS, returnNameOfMail(L, index));
 			sendMessage(tS->commSocket, ".");
 		}
 	}
@@ -868,12 +876,10 @@ void topIndexOperation(threadStruct *tS, int index, int rows) {
 		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
 	} else {
 		if (!checkIfMarkedForDeletion(L, index)) {
-
 			string name;
 			copyName(L, index, &name);
-
-
 			sendResponse(tS->commSocket, false, "");
+			sendMail(tS, name, rows);
 			sendMessage(tS->commSocket, ".");
 		} else {
 			sendResponse(tS->commSocket, true, "mail does not exist");
@@ -1015,8 +1021,8 @@ void executeMailServer(threadStruct *tS) {
 					} else if (op == 13) {
 						uidlIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
 					} else if (op == 14) {
-						// TODO
-						topIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr), 1);
+						// TODO TOP 3 2
+						topIndexOperation(tS, stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", false), nullptr), stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", true), nullptr));
 					} else {
 						sendResponse(tS->commSocket, true, "invalid operation");
 					}
@@ -1085,8 +1091,7 @@ bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHa
 		}
 	} else {
 		if (op == 1) {
-			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), " ", false),
-						  tS->serverUser)) {
+			if (checkUser(tS->clientUser = returnSubstring(returnSubstring(receivedMessage, " ", true), " ", false), tS->serverUser)) {
 				if (!authenticateUser(tS->clientPass = returnSubstring(returnSubstring(returnSubstring(receivedMessage, " ", true), " ", true), "\r\n", false),tS->serverPass = md5(tS->pidTimeStamp + tS->serverPass))) {
 					sendResponse(tS->commSocket, true, "invalid username or password");
 					return false;
@@ -1128,7 +1133,6 @@ void *clientThread(void *tS) {
 
 			int op = 0;
 			if ((op = getOperation(receivedMessage)) != 0) {
-				cout <<  endl << "OP: " << op << endl;
 				if (userIsAuthorised(op, tParam, receivedMessage, tParam->isHashed)) {
 					executeMailServer(tParam);
 				} else if (op == 4) {
