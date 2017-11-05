@@ -179,7 +179,6 @@ bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset
  * @returns string parsed substring, if nothing is found, returns "", else returns the parsed string
  */
 string returnSubstring(string String, string delimiter, bool way) {
-	
 	string subString = "";
 	if (String.find(delimiter) != string::npos) {
 		if (way) {
@@ -188,7 +187,7 @@ string returnSubstring(string String, string delimiter, bool way) {
 			subString = String.substr(0, String.find(delimiter));
 		}
 	}
-	
+
 	return subString;
 }
 
@@ -442,16 +441,15 @@ void first(tList *L) {
 
 void disposeList(tList *L) {
 
+
 	while (L->First != nullptr) {
 		mailStructPtr helpMail = new mailStruct;
-
 		helpMail = L->First->nextMail;
 		delete(L->First);
 		L->First = nullptr;
 		L->First = helpMail;
 		delete(helpMail);
 	}
-
 	L->Active = nullptr;
 }
 
@@ -637,14 +635,14 @@ size_t sumOfSizeMails(tList *L) {
 }
 
 
-void getMailContent(threadStruct *tS, string name, bool header) {
+void getMailContent(threadStruct *tS, string name) {
 	string returnedString;
 	string line;
 
 	ifstream file;
 	file.open(tS->mailDir+"/cur/"+name);
 	// TODO split into two functions, one just get whole mail and send and one get amount of lanes after header and sent
-	if (header) {
+	if (true) {
 		while (getline(file, line)) {
 			sendMessage(tS->commSocket, line);
 		}
@@ -888,7 +886,7 @@ void topIndexOperation(threadStruct *tS, int index, int rows) {
  * TODO
  */
 void quitOperation(threadStruct *tS) {
-	deleteMarkedForDeletion();
+	deleteMarkedForDeletion(tS);
 
 }
 
