@@ -12,6 +12,7 @@
 #include <fstream>
 #include <signal.h>
 #include <vector>
+#include <list>
 #include "lib/md5/md5.cpp"
 
 using namespace std;
@@ -37,19 +38,15 @@ typedef struct {
 vector<threadStruct*> threads;
 
 typedef struct mailStruct{
+	unsigned long id;
 	string name;
 	size_t size;
 	bool toDelete;
-	mailStruct *nextMail;
 } *mailStructPtr;
 
-typedef struct {
-	mailStructPtr First;
-	mailStructPtr Active;
-} tList;
 
 
-tList *L = new tList;
+std::list <mailStruct> mailList;
 
 /*
  * Function prints an error message on cerr and exits program
@@ -239,33 +236,33 @@ int getOperation(string message) {
 
 	string op = returnSubstring(message, "\r\n", false);
 
-	if (returnSubstring(op, " ", false) == "APOP") {
+	if (returnSubstring(op, " ", false) == "APOP" || returnSubstring(op, " ", false) == "apop") {
 		return 1;
-	} else if (returnSubstring(op, " ", false) == "USER") {
+	} else if (returnSubstring(op, " ", false) == "USER" || returnSubstring(op, " ", false) == "user") {
 		return 2;
-	} else if (returnSubstring(op, " ", false) == "PASS") {
+	} else if (returnSubstring(op, " ", false) == "PASS" || returnSubstring(op, " ", false) == "pass") {
 		return 3;
-	} else if (op == "QUIT") {
+	} else if (op == "QUIT" || op == "quit") {
 		return 4;
-	} else if (op == "LIST") {
+	} else if (op == "LIST" || op == "list") {
 		return 5;
-	} else if (returnSubstring(op, " ", false) == "LIST") {
+	} else if (returnSubstring(op, " ", false) == "LIST" || returnSubstring(op, " ", false) == "list") {
 		return 6;
-	} else if (op == "NOOP") {
+	} else if (op == "NOOP" || op == "noop") {
 		return 7;
-	} else if (op == "STAT") {
+	} else if (op == "STAT" || op == "stat") {
 		return 8;
-	} else if (returnSubstring(op, " ", false) == "RETR") {
+	} else if (returnSubstring(op, " ", false) == "RETR" || returnSubstring(op, " ", false) == "retr") {
 		return 9;
-	} else if (returnSubstring(op, " ", false) == "DELE") {
+	} else if (returnSubstring(op, " ", false) == "DELE" || returnSubstring(op, " ", false) == "dele") {
 		return 10;
-	} else if (op == "RSET") {
+	} else if (op == "RSET" || op == "rset") {
 		return 11;
-	} else if (op == "UIDL") {
+	} else if (op == "UIDL" || op == "uidl") {
 		return 12;
-	} else if (returnSubstring(op, " ", false) == "UIDL") {
+	} else if (returnSubstring(op, " ", false) == "UIDL" || returnSubstring(op, " ", false) == "uidl") {
 		return 13;
-	} else if (returnSubstring(op, " ", false) == "TOP") {
+	} else if (returnSubstring(op, " ", false) == "TOP" || returnSubstring(op, " ", false) == "top") {
 		return 14;
 	} else {
 		return 0;
@@ -434,208 +431,107 @@ void moveNewToCur(threadStruct *tS) {
 
 /* List operations over mails */
 
-void initList(tList *L) {
-	L->First = nullptr;
-	L->Active = nullptr;
-}
 
-void first(tList *L) {
-	L->Active = L->First;
-}
-
-void disposeList(tList *L) {
-
-
-	while (L->First != nullptr) {
-		mailStructPtr helpMail = new mailStruct;
-		helpMail = L->First->nextMail;
-		delete(L->First);
-		L->First = nullptr;
-		L->First = helpMail;
-		delete(helpMail);
-	}
-	L->Active = nullptr;
-}
-
-void insertFirst(tList *L, string name, size_t size) {
-
-	mailStructPtr first = new mailStruct;
-
-	first->name = name;
-	first->size = size;
-	first->nextMail = L->First;
-	first->toDelete = false;
-
-	first->nextMail = L->First;
-	L->First = first;
-}
-
-
-void succ(tList *L) {
-	if (L->Active != nullptr) {
-		L->Active = L->Active->nextMail;
+void disposeList() {
+	while(!mailList.empty()) {
+		mailList.pop_back();
 	}
 }
 
+void insertMail(string name, size_t size) {
 
-void copySize(tList *L, int index, size_t *size) {
-	if (L->First == nullptr) {
-	} else {
-		first(L);
-		int i = 1;
-		while (i < index) {
-			if (L->Active->nextMail != nullptr) {
-				succ(L);
-			}
-			i++;
-		}
-		*size = L->Active->size;
-	}
-}
+	auto *mail = new mailStruct;
 
-void copyName(tList *L, int index, string *name) {
+	mail->id = mailList.size()+1;
+	mail->name = name;
+	mail->size = size;
+	mail->toDelete = false;
 
-	if (L->First == nullptr) {
-	} else {
-		first(L);
-		int i = 1;
-		while (i < index) {
-			if (L->Active->nextMail != nullptr) {
-				succ(L);
-			}
-			i++;
-		}
-		*name = L->Active->name;
-	}
-}
+	cout << to_string(mail->id) << endl;
+	cout  << name << endl;
 
-void copyToDelete(tList *L, int index, bool *toDelete) {
-	if (L->First == nullptr) {
-	} else {
-		first(L);
-		int i = 1;
-		while (i < index) {
-			if (L->Active->nextMail != nullptr) {
-				succ(L);
-			}
-			i++;
-		}
-		*toDelete = L->Active->toDelete;
-	}
+	mailList.push_back(*mail);
 }
 
 
-
-
-
-
-/*
-void deleteFirst(tList *L) {
-	if (L->First != nullptr) {
-		if (L->First == L->Active) {
-			delete(L->Active);
-			L->Active = nullptr;
-		} else {
-			delete(L->First);
-			L->First = nullptr;
+void copySize(unsigned int index, size_t *size) {
+	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
+		if (i->id == index) {
+			*size = i->size;
+			break;
 		}
 	}
-}*/
-
-
-void insertAtTheEnd(tList *L, string name, size_t size) {
-
-	first(L);
-
-	while (L->Active->nextMail != nullptr) {
-		succ(L);
-	}
-
-	mailStructPtr last = new mailStruct;
-
-	L->Active->nextMail = last;
-	last->size = size;
-	last->name = name;
-	last->toDelete = false;
-	last->nextMail = nullptr;
 }
 
-bool checkIfMarkedForDeletion(tList *L, int index) {
-	first(L);
-
-	int i = 1;
-	while (i < index) {
-		succ(L);
-		i++;
+void copyName(unsigned int index, string *name) {
+	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
+		if (i->id == index) {
+			*name = i->name;
+			break;
+		}
 	}
-
-	return L->Active->toDelete;
 }
 
-void markForDeletion(threadStruct *tS, tList *L, int index) {
+void copyToDelete(unsigned int index, bool *toDelete) {
+	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
+		if (i->id == index) {
+			*toDelete = i->toDelete;
+			break;
+		}
+	}
+}
 
-	if (checkIfMarkedForDeletion(L, index)) {
+
+void setToDelete(unsigned int index, bool toDelete) {
+	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
+		if (i->id == index) {
+			i->toDelete = toDelete;
+			break;
+		}
+	}
+}
+
+bool checkIfMarkedForDeletion(unsigned int index) {
+	bool toDelete = false;
+	copyToDelete(index, &toDelete);
+	return toDelete;
+}
+
+void markForDeletion(threadStruct *tS, unsigned int index) {
+
+	if (checkIfMarkedForDeletion(index)) {
 		sendResponse(tS->commSocket, true, "mail already marked for deletion");
 	} else {
-		L->Active->toDelete = true;
+		setToDelete(index, true);
 		sendResponse(tS->commSocket, false, "mail marked for deletion");
 	}
 }
 
 
-int sumOfMails(tList *L) {
-	int i = 0;
-
-	first(L);
-	while (L->Active != nullptr) {
-		if (!L->Active->toDelete) {
-			i++;
+int sumOfMails() {
+	int sum = 0;
+	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
+		if (!i->toDelete) {
+			sum++;
 		}
-		succ(L);
 	}
-
-	return i;
+	return sum;
 }
 
 
-bool checkIndexOfMail(tList *L, int index) {
-
-	int maxIndex = 1;
-	first(L);
-	while (L->Active != nullptr) {
-		succ(L);
-		maxIndex++;
-	}
-
-	return (index <= maxIndex && index > 0);
+bool checkIndexOfMail(unsigned int index) {
+	return (index > 0 && index <= mailList.size());
 }
 
 
-string returnNameOfMail(tList *L, int index) {
-	int i = 1;
-
-	first(L);
-
-	while(i < index) {
-		i++;
-		succ(L);
-	}
-
-	return L->Active->name;
-}
-
-
-size_t sumOfSizeMails(tList *L) {
-	size_t size = 0;
-	first(L);
-	while(L->Active != nullptr) {
-		if (!L->Active->toDelete) {
-			size += L->Active->size;
+size_t sumOfSizeMails() {
+	size_t sum = 0;
+	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
+		if (!i->toDelete) {
+			sum += i->size;
 		}
-		succ(L);
 	}
-
-	return size;
+	return sum;
 }
 
 
@@ -690,31 +586,23 @@ bool checkMailDir(string dir) {
 
 
 void rsetOperation(threadStruct *tS) {
-	first(L);
-
-	while(L->Active != nullptr) {
-		if (L->Active->toDelete) {
-			L->Active->toDelete = false;
-		}
-		if (L->Active->nextMail == nullptr) {
-			break;
-		}
-		succ(L);
+	for (unsigned int i = 1; i <= mailList.size(); i++) {
+		setToDelete(i, false);
 	}
-	sendResponse(tS->commSocket, false, "user's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+") octets");
+	sendResponse(tS->commSocket, false, "user's maildrop has "+to_string(sumOfMails())+" messages ("+to_string(sumOfSizeMails())+") octets");
 }
 
 void deleOperation(threadStruct *tS, int index) {
-	if (!checkIndexOfMail(L, index)) {
-		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
+	if (!checkIndexOfMail(index)) {
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
-		markForDeletion(tS, L, index);
+		markForDeletion(tS, index);
 	}
 }
 
 void statOperation(threadStruct *tS) {
-	int mails = sumOfMails(L);
-	size_t size = sumOfSizeMails(L);
+	int mails = sumOfMails();
+	size_t size = sumOfSizeMails();
 	sendResponse(tS->commSocket, false, to_string(mails)+" "+to_string(size));
 }
 
@@ -736,14 +624,14 @@ void noopOperation(threadStruct *tS) {
  * @param int index index of mail we are looking for
  */
 void listIndexOperation(threadStruct *tS, int index) {
-	if (!checkIndexOfMail(L, index)) {
-		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
+	if (!checkIndexOfMail(index)) {
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
-		if (checkIfMarkedForDeletion(L, index)) {
+		if (checkIfMarkedForDeletion(index)) {
 			sendResponse(tS->commSocket, true, "mail marked for deletion");
 		} else {
 			size_t size;
-			copySize(L, index, &size);
+			copySize(index, &size);
 			sendResponse(tS->commSocket, false, to_string(size)+" octets");
 		}
 	}
@@ -758,14 +646,16 @@ void listIndexOperation(threadStruct *tS, int index) {
  * @param int index index of mail we are looking for
  */
 void retrOperation(threadStruct *tS, int index) {
-	if (!checkIndexOfMail(L, index)) {
-		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
+	if (!checkIndexOfMail(index)) {
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
-		if (checkIfMarkedForDeletion(L, index)) {
+		if (checkIfMarkedForDeletion(index)) {
 			sendResponse(tS->commSocket, true, "mail marked for deletion");
 		} else {
 			listIndexOperation(tS, index);
-			sendMailWithHeader(tS, returnNameOfMail(L, index));
+			string name;
+			copyName(index, &name);
+			sendMailWithHeader(tS, name);
 			sendMessage(tS->commSocket, ".");
 		}
 	}
@@ -779,17 +669,16 @@ void retrOperation(threadStruct *tS, int index) {
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
  */
 void listOperation(threadStruct *tS) {
-	int sum = sumOfMails(L);
-	sendResponse(tS->commSocket, false, ""+to_string(sum)+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
+	sendResponse(tS->commSocket, false, ""+to_string(sumOfMails())+" messages ("+to_string(sumOfSizeMails())+" octets)");
 
 
 	// take mails one by one, hash them and send them with id
 	int index = 1;
 	int localIndex = index;
-	while (index <= sum) {
-		if (!checkIfMarkedForDeletion(L, index)) {
+	while (index <= sumOfMails()) {
+		if (!checkIfMarkedForDeletion(index)) {
 			size_t size;
-			copySize(L, index, &size);
+			copySize(index, &size);
 			sendMessage(tS->commSocket, to_string(localIndex)+" "+to_string(size));
 			localIndex++;
 		}
@@ -818,7 +707,7 @@ string hashForUidl(threadStruct *tS, string mailName) {
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
  */
 void uidlOperation(threadStruct *tS) {
-	int sum = sumOfMails(L);
+	int sum = sumOfMails();
 	if (sum == 0) {
 		sendResponse(tS->commSocket, false, "0 messages in maildrop");
 		sendMessage(tS->commSocket, ".");
@@ -829,9 +718,9 @@ void uidlOperation(threadStruct *tS) {
 		int index = 1;
 		int localIndex = index;
 		while (index <= sum) {
-			if (!checkIfMarkedForDeletion(L, index)) {
+			if (!checkIfMarkedForDeletion(index)) {
 				string mailName;
-				copyName(L, index, &mailName);
+				copyName(index, &mailName);
 				sendResponse(tS->commSocket, false, to_string(localIndex)+" "+hashForUidl(tS, mailName));
 				localIndex++;
 			}
@@ -849,12 +738,12 @@ void uidlOperation(threadStruct *tS) {
  * @param int index index of a mail
  */
 void uidlIndexOperation(threadStruct *tS, int index) {
-	if (!checkIndexOfMail(L, index)) {
-		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
+	if (!checkIndexOfMail(index)) {
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
-		if (!checkIfMarkedForDeletion(L, index)) {
+		if (!checkIfMarkedForDeletion(index)) {
 			string mailName;
-			copyName(L, index, &mailName);
+			copyName(index, &mailName);
 			sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(tS, mailName));
 		} else {
 			sendResponse(tS->commSocket, true, "mail does not exist");
@@ -876,12 +765,12 @@ void deleteMarkedForDeletion(threadStruct *tS) {
  * @param int rows number of rows requested from mail
  */
 void topIndexOperation(threadStruct *tS, int index, int rows) {
-	if (!checkIndexOfMail(L, index)) {
-		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails(L))+" messages in maildrop)");
+	if (!checkIndexOfMail(index)) {
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
-		if (!checkIfMarkedForDeletion(L, index)) {
+		if (!checkIfMarkedForDeletion(index)) {
 			string name;
-			copyName(L, index, &name);
+			copyName(index, &name);
 			sendResponse(tS->commSocket, false, "");
 			sendMail(tS, name, rows);
 			sendMessage(tS->commSocket, ".");
@@ -892,12 +781,16 @@ void topIndexOperation(threadStruct *tS, int index, int rows) {
 }
 
 
+void closeThread(threadStruct *tS) {
+
+}
+
 /*
  * TODO
  */
 void quitOperation(threadStruct *tS) {
 	deleteMarkedForDeletion(tS);
-
+	closeThread(tS);
 }
 
 
@@ -926,27 +819,20 @@ size_t getFileSize(string file) {
  */
 void createListFromMails(threadStruct *tS) {
 
-	initList(L);
-
-	int i = 0;
 	size_t size = 0;
 	string name = "";
 	DIR *dir;
 	struct dirent *ent;
 
-	if ((dir = opendir((tS->mailDir+"/cur/").c_str())) != nullptr) {
+	if ((dir = opendir((tS->mailDir+"/new/").c_str())) != nullptr) {
 		while ((ent = readdir(dir)) != nullptr) {
-			size = getFileSize(tS->mailDir+"/cur/"+ent->d_name);
+			size = getFileSize(tS->mailDir+"/new/"+ent->d_name);
 			name = ent->d_name;
 			if (string(ent->d_name) == ".." || string(ent->d_name) == ".") {
 				continue;
 			} else {
-				if (!i) {
-					insertFirst(L, name, size);
-				} else {
-					insertAtTheEnd(L, name, size);
-				}
-				i++;
+				cout << "Inserting mails" << endl;
+				insertMail(name+":2,", size);
 			}
 		}
 	}
@@ -984,11 +870,11 @@ void executeMailServer(threadStruct *tS) {
 		return;
 	}
 
+	createListFromMails(tS);
 	moveNewToCur(tS);
 
-	createListFromMails(tS);
 
-	sendResponse(tS->commSocket, false, "user's maildrop has "+to_string(sumOfMails(L))+" messages ("+to_string(sumOfSizeMails(L))+" octets)");
+	sendResponse(tS->commSocket, false, "user's maildrop has "+to_string(sumOfMails())+" messages ("+to_string(sumOfSizeMails())+" octets)");
 
 	for(;;) {
 		char received[1024];
@@ -1025,8 +911,8 @@ void executeMailServer(threadStruct *tS) {
 					} else if (op == 13) {
 						uidlIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
 					} else if (op == 14) {
-						// TODO TOP 3 2
-						topIndexOperation(tS, stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", false), nullptr), stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", true), nullptr));
+						// TODO
+						topIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr), 1);
 					} else {
 						sendResponse(tS->commSocket, true, "invalid operation");
 					}
@@ -1129,26 +1015,32 @@ void *clientThread(void *tS) {
 	char receivedMessage[1024];
 	auto *tParam = (threadStruct *) tS;
 
+
+	clock_t clock1 = clock();
+	double timeout = 10;
+
 	sendResponse(tParam->commSocket, false, "POP3 server ready "+tParam->pidTimeStamp);
 	for (;;) {
-		if (((int) recv(tParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
-			break;
-		} else {
+		if (((clock() - clock1) / CLOCKS_PER_SEC) <= timeout) {
 
-			int op = 0;
-			if ((op = getOperation(receivedMessage)) != 0) {
-				if (userIsAuthorised(op, tParam, receivedMessage, tParam->isHashed)) {
-					executeMailServer(tParam);
-				} else if (op == 4) {
-					closeConnection(tParam->commSocket);
-				} else {
-					continue;
-				}
+			if (((int) recv(tParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
+				break;
 			} else {
-				sendResponse(tParam->commSocket, true, "invalid operation");
-				cout << op << endl;
-			}
 
+				int op = 0;
+				if ((op = getOperation(receivedMessage)) != 0) {
+					if (userIsAuthorised(op, tParam, receivedMessage, tParam->isHashed)) {
+						executeMailServer(tParam);
+					} else {
+						continue;
+					}
+				} else {
+					sendResponse(tParam->commSocket, true, "invalid operation");
+				}
+			}
+		} else {
+			sendMessage(tParam->commSocket, "You have been logged out after "+to_string(timeout)+" seconds.");
+			closeConnection(tParam->commSocket);
 		}
 	}
 	return nullptr;
@@ -1172,8 +1064,8 @@ void resetMail() {
 				mailDir = returnSubstring(line, "dir = ", true);
 			} else {
 				name = returnSubstring(line, "name = ", true);
-				cout << name << endl;
 				copyFile(mailDir+"/cur/"+name, mailDir+"/new/"+returnSubstring(name, ":2,", false));
+				cout << "MailPath: "+mailDir+"/cur/"+name << endl;
 				deleteFile(mailDir+"/cur/"+name);
 			}
 			i++;
@@ -1190,32 +1082,33 @@ void resetMail() {
  * Format of this config is following:
  * maildirdir = dir
  * name = name:2, (:2, is already in name) name = returnSubstring(name, ":2,", false)
- * **/
-void createMailCfg(tList *L) {
+ */
+void createMailCfg() {
 
-	string maildir = mailDir;
+	string directory = mailDir;
 	string name;
 	ofstream file;
 	file.open(mailConfig);
 
-	first(L);
-
-	while (L->Active != nullptr) {
-		name = L->Active->name;
-		file << "name = " << name << endl;
-		file << "dir = " << maildir << endl;
-		succ(L);
+	unsigned int i = 1;
+	while (i <= mailList.size()) {
+		bool toDelete;
+		copyToDelete(i,&toDelete);
+		if (!toDelete) {
+			copyName(i, &name);
+			cout << "Mailconfig: " << directory << endl << name << endl;
+			file << "dir = " << directory << endl;
+			file << "name = " << name << endl;
+			i++;
+		}
 	}
-
 	file.close();
 }
 
 
 void closeThreads() {
-	int threadSize = threads.size();
-	while(threadSize > 0) {
-		closeConnection(threads.at(threadSize)->commSocket);
-		threadSize--;
+	while(!threads.empty()) {
+		closeConnection(threads.at(threads.size()-1)->commSocket);
 		threads.pop_back();
 	}
 }
@@ -1226,8 +1119,8 @@ void closeThreads() {
  * @param int param not used
  */
 void siginthandler(int param) {
-	createMailCfg(L);
-	disposeList(L);
+	createMailCfg();
+	disposeList();
 	closeThreads();
 	exit(EXIT_SUCCESS);
 }
@@ -1253,17 +1146,6 @@ int main(int argc, char *argv[]) {
 		throwException("ERROR: Wrong arguments.");
 	}
 
-	printf("DEBUG INFO\n");
-	cout << "Arguments: " << argc << endl;
-	cout << "Port: " << port << endl;
-	cout << "HELP VAL: " << help << endl;
-	cout << "RESET VAL: " << reset << endl;
-	cout << "mailDir VAL: " << mailDir << endl;
-	cout << "usersFile VAL: " << usersFile << endl;
-	cout << "port VAL: " << port << endl;
-	cout << "isHashed VAL: " << isHashed << endl;
-	cout << "Mail Config FILE: " << mailConfig << endl;
-
 	// help param was passed? if yes, then print help and end program
 	if (help) {
 		printHelp();
@@ -1282,10 +1164,6 @@ int main(int argc, char *argv[]) {
 	if (!checkUsersFile(usersFile.c_str(), serverUser, serverPass)) {
 		throwException("ERROR: Wrong format of User file.");
 	}
-
-
-	cout << "USER: " << serverUser << endl;
-	cout << "PASS: " << serverPass << endl;
 
 	// we will create and open a socket
 	int serverSocket;
