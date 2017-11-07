@@ -1212,7 +1212,7 @@ void createMailCfg() {
 
 
 /*
- * TODO
+ * Function takes all threads and closes them one by one
  *
  */
 void closeThreads() {
