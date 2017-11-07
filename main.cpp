@@ -13,7 +13,7 @@
 #include <csignal>
 #include <vector>
 #include <list>
-#include "lib/md5/md5.cpp"
+#include "md5.cpp"
 
 using namespace std;
 
