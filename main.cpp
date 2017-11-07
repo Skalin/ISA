@@ -883,9 +883,7 @@ void executeMailServer(threadStruct *tS) {
 		} else {
 			int op;
 			if ((op = getOperation(received)) != 0) {
-				cout << op << endl;
 				if (validateRequest(string(received), op)) {
-
 					// operations
 					if (op > 0 && op <= 3) {
 						sendResponse(tS->commSocket, true, "already authorised");
