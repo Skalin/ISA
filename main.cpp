@@ -447,9 +447,6 @@ void insertMail(string name, size_t size) {
 	mail->size = size;
 	mail->toDelete = false;
 
-	cout << to_string(mail->id) << endl;
-	cout  << name << endl;
-
 	mailList.push_back(*mail);
 }
 
@@ -715,8 +712,8 @@ void uidlOperation(threadStruct *tS) {
 		sendResponse(tS->commSocket, false, to_string(sum)+" messages");
 
 		// take mails one by one, hash them and send them with id
-		int index = 1;
-		int localIndex = index;
+		unsigned int index = 1;
+		unsigned int localIndex = index;
 		while (index <= sum) {
 			if (!checkIfMarkedForDeletion(index)) {
 				string mailName;
@@ -737,7 +734,7 @@ void uidlOperation(threadStruct *tS) {
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
  * @param int index index of a mail
  */
-void uidlIndexOperation(threadStruct *tS, int index) {
+void uidlIndexOperation(threadStruct *tS, unsigned int index) {
 	if (!checkIndexOfMail(index)) {
 		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
@@ -764,7 +761,7 @@ void deleteMarkedForDeletion(threadStruct *tS) {
  * @param int index index of a mail
  * @param int rows number of rows requested from mail
  */
-void topIndexOperation(threadStruct *tS, int index, int rows) {
+void topIndexOperation(threadStruct *tS, unsigned int index, int rows) {
 	if (!checkIndexOfMail(index)) {
 		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
@@ -804,7 +801,7 @@ size_t getFileSize(string file) {
 	ifstream fileStream(file.c_str(), fstream::binary);
 
 	fileStream.seekg(0, fileStream.end);
-	size_t size = fileStream.tellg();
+	size_t size = (unsigned) fileStream.tellg();
 	fileStream.seekg(0);
 
 	fileStream.close();
@@ -907,9 +904,9 @@ void executeMailServer(threadStruct *tS) {
 					} else if (op == 12) {
 						uidlOperation(tS);
 					} else if (op == 13) {
-						uidlIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+						uidlIndexOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
 					} else if (op == 14) {
-						topIndexOperation(tS, stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", false), nullptr), stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", true), nullptr));
+						topIndexOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", false), nullptr), stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", true), nullptr));
 					} else {
 						sendResponse(tS->commSocket, true, "invalid operation");
 					}
@@ -1062,7 +1059,6 @@ void resetMail() {
 			} else {
 				name = returnSubstring(line, "name = ", true);
 				copyFile(mailDir+"/cur/"+name, mailDir+"/new/"+returnSubstring(name, ":2,", false));
-				cout << "MailPath: "+mailDir+"/cur/"+name << endl;
 				deleteFile(mailDir+"/cur/"+name);
 			}
 			i++;
