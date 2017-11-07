@@ -1023,7 +1023,7 @@ void *clientThread(void *tS) {
 			if (((int) recv(tParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
 				break;
 			} else {
-
+				clock1 = clock();
 				int op = 0;
 				if ((op = getOperation(receivedMessage)) != 0) {
 					if (userIsAuthorised(op, tParam, receivedMessage, tParam->isHashed)) {
