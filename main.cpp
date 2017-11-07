@@ -10,7 +10,7 @@
 #include <netdb.h>
 #include <sstream>
 #include <fstream>
-#include <signal.h>
+#include <csignal>
 #include <vector>
 #include <list>
 #include "lib/md5/md5.cpp"
@@ -28,9 +28,9 @@ typedef struct {
 	string usersFile = "";
 	bool isHashed = true;
 	string clientUser = "";
-	string serverUser = "\0";
+	string serverUser = "";
 	string clientPass = "";
-	string serverPass = "\0";
+	string serverPass = "";
 	int commSocket = -1;
 	string pidTimeStamp = "";
 } threadStruct;
@@ -43,8 +43,6 @@ typedef struct mailStruct{
 	size_t size;
 	bool toDelete;
 } *mailStructPtr;
-
-
 
 std::list <mailStruct> mailList;
 
@@ -62,7 +60,7 @@ void throwException(const char *message) {
  * Function checks if the folder is regular folder, it is typically called after itemExists(), it shouldn't be called without this function
  *
  * @param const char *file name of the folder
- * @returns true if folder exists and is regular folder, false otherwise
+ * @returns bool true if folder exists and is regular folder, false otherwise
  */
 bool fileExists(const char *file) {
 	struct stat sb;
@@ -74,7 +72,7 @@ bool fileExists(const char *file) {
  * Function checks if the folder is regular folder, it is typically called after itemExists(), it shouldn't be called without this function
  *
  * @param const char *folder name of the folder
- * @returns true if folder exists and is regular folder, false otherwise
+ * @returns bool true if folder exists and is regular folder, false otherwise
  */
 bool isDirectory(const char *folder) {
 	struct stat sb;
@@ -108,6 +106,7 @@ void printHelp() {
  * Function checks if amount of params is ok
  *
  * @param int argc amount of arguments -1
+ * @returns bool true if params were alright, false otherwise
  */
 bool checkParams(int argc) {
 
@@ -199,7 +198,7 @@ string returnSubstring(string String, string delimiter, bool way) {
  * @param const char *name name of the file
  * @param string &user address of variable where the value of username will be stored
  * @param string &pass address of variable where the value of password will be stored
- * @returns true if validation was successful, false otherwise
+ * @returns bool true if validation was successful, false otherwise
  */
 bool checkUsersFile(const char *name, string &user, string &pass) {
 
@@ -329,7 +328,7 @@ void sendMessage(int socket, string message) {
  *
  * @param string clientUser user received from client
  * @param string serverUser user on server
- * @returns true if clients are ok, false otherwise
+ * @returns bool true if clients are ok, false otherwise
  */
 bool checkUser(string clientUser, string serverUser) {
 	return (clientUser == serverUser);
@@ -341,7 +340,7 @@ bool checkUser(string clientUser, string serverUser) {
  *
  * @param string clientPass user received from client
  * @param string serverPass user on server
- * @returns true if client passwords are ok, false otherwise
+ * @returns bool true if client passwords are ok, false otherwise
  */
 bool authenticateUser(string clientPass, string serverPass) {
 	return (clientPass == serverPass);
@@ -367,8 +366,7 @@ void copyFile(string from, string to) {
  *
  * @param string dir folder of the server
  * @param string name name of the mail
- *
- * @returns true if mail exists, false otherwise
+ * @returns bool true if mail exists, false otherwise
  */
 bool mailExists(string dir, string name) {
 	DIR *directory;
@@ -432,12 +430,24 @@ void moveNewToCur(threadStruct *tS) {
 /* List operations over mails */
 
 
+/*
+ * Function cleans the mailList which contains all mails while the list is not empty
+ *
+ */
 void disposeList() {
 	while(!mailList.empty()) {
 		mailList.pop_back();
 	}
 }
 
+
+/*
+ * Function inserts mail into list of mails, first of all allocates space for mailStruct structure, then fills it with values and pushes it into the list or with default values (id of mail is current size of list + 1 and toDelete value is always false at the init
+ *
+ * @param string name name of the mail from Maildir folder
+ * @param size_t size size of the mail in octets
+ *
+ */
 void insertMail(string name, size_t size) {
 
 	auto *mail = new mailStruct;
@@ -451,6 +461,13 @@ void insertMail(string name, size_t size) {
 }
 
 
+/*
+ * Function copies the size of mail from list on certain index and stores it in the pointer in the second argument
+ *
+ * @param unsigned int index index of mail
+ * @param size_t *size pointer to the variable where the size will be stored
+ *
+ */
 void copySize(unsigned int index, size_t *size) {
 	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
 		if (i->id == index) {
@@ -460,6 +477,14 @@ void copySize(unsigned int index, size_t *size) {
 	}
 }
 
+
+/*
+ * Function copies the name of mail from list on certain index and stores it in the pointer in the second argument
+ *
+ * @param unsigned int index index of mail
+ * @param string *name pointer to the variable where the name will be stored
+ *
+ */
 void copyName(unsigned int index, string *name) {
 	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
 		if (i->id == index) {
@@ -469,6 +494,14 @@ void copyName(unsigned int index, string *name) {
 	}
 }
 
+
+/*
+ * Function copies the deletion flag of mail from list on certain index and stores it in the pointer in the second argument
+ *
+ * @param unsigned int index index of mail
+ * @param bool *toDelete pointer to the variable where the deletion flag will be stored
+ *
+ */
 void copyToDelete(unsigned int index, bool *toDelete) {
 	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
 		if (i->id == index) {
@@ -479,6 +512,13 @@ void copyToDelete(unsigned int index, bool *toDelete) {
 }
 
 
+/*
+ * Function sets the deletion flag of mail on certain index
+ *
+ * @param unsigned int index index of mail
+ * @param bool toDelete value of deletion flag that will be saved
+ *
+ */
 void setToDelete(unsigned int index, bool toDelete) {
 	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
 		if (i->id == index) {
@@ -488,25 +528,27 @@ void setToDelete(unsigned int index, bool toDelete) {
 	}
 }
 
+
+/*
+ * Function checks the deletion flag of mail on certain index
+ *
+ * @param unsigned int index index of mail
+ * @returns bool value of deletion flag, true if marked for deletion, false otherwise
+ */
 bool checkIfMarkedForDeletion(unsigned int index) {
 	bool toDelete = false;
 	copyToDelete(index, &toDelete);
 	return toDelete;
 }
 
-void markForDeletion(threadStruct *tS, unsigned int index) {
 
-	if (checkIfMarkedForDeletion(index)) {
-		sendResponse(tS->commSocket, true, "mail already marked for deletion");
-	} else {
-		setToDelete(index, true);
-		sendResponse(tS->commSocket, false, "mail marked for deletion");
-	}
-}
-
-
-int sumOfMails() {
-	int sum = 0;
+/*
+ * Function returns sum of all mails that are not marked for deletion
+ *
+ * @returns unsigned int sum of all mails
+ */
+unsigned int sumOfMails() {
+	unsigned int sum = 0;
 	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
 		if (!i->toDelete) {
 			sum++;
@@ -516,11 +558,22 @@ int sumOfMails() {
 }
 
 
+/*
+ * Function checks if the index of mail given is in the list
+ *
+ * @param unsigned int index of index of mail
+ * @returns bool true if index is in range, false otherwise
+ */
 bool checkIndexOfMail(unsigned int index) {
 	return (index > 0 && index <= mailList.size());
 }
 
 
+/*
+ * Functions sums the size of all mails and returns it
+ *
+ * @returns size_t sum of all mails in octets
+ */
 size_t sumOfSizeMails() {
 	size_t sum = 0;
 	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
@@ -532,6 +585,14 @@ size_t sumOfSizeMails() {
 }
 
 
+/*
+ * Functions takes content of mail with name and returns lines of content after header
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ * @param string name name of the mail
+ * @param int lines number of lines that are being sent
+ *
+ */
 void sendMail(threadStruct *tS, string name, int lines) {
 	string line;
 	bool header = true;
@@ -552,6 +613,13 @@ void sendMail(threadStruct *tS, string name, int lines) {
 	}
 }
 
+
+/*
+ * Function sends the whole content with header of mail with name
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ * @param string name name of the mail
+ */
 void sendMailWithHeader(threadStruct *tS, string name) {
 	string line;
 
@@ -566,7 +634,9 @@ void sendMailWithHeader(threadStruct *tS, string name) {
 
 
 /*
+ * Function closes connection on the socket, sends bye response to client, closes it, unlocks mutex and exits thread
  *
+ * @param int socket value of socket that is being closed
  *
  */
 void closeConnection(int socket) {
@@ -577,11 +647,23 @@ void closeConnection(int socket) {
 }
 
 
+/*
+ * Function checks if the maildir contains /new, /cur and /tmp folders
+ *
+ * @param string dir name of the folder with Maildir
+ * @returns bool true if maildir is alright, false otherwise
+ */
 bool checkMailDir(string dir) {
  	return (isDirectory((dir+"/new").c_str()) && isDirectory((dir+"/cur").c_str()) && isDirectory((dir+"/tmp").c_str()));
 }
 
 
+/*
+ * Function does reset of the mailList, which means that all mails marked for deletion will be unmarked
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ *
+ */
 void rsetOperation(threadStruct *tS) {
 	for (unsigned int i = 1; i <= mailList.size(); i++) {
 		setToDelete(i, false);
@@ -589,18 +671,36 @@ void rsetOperation(threadStruct *tS) {
 	sendResponse(tS->commSocket, false, "user's maildrop has "+to_string(sumOfMails())+" messages ("+to_string(sumOfSizeMails())+") octets");
 }
 
-void deleOperation(threadStruct *tS, int index) {
+
+/*
+ * Function does reset of the mailList, which means that all mails marked for deletion will be unmarked
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ * @param unsigned int index index of mail
+ *
+ */
+void deleOperation(threadStruct *tS, unsigned int index) {
 	if (!checkIndexOfMail(index)) {
 		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
-		markForDeletion(tS, index);
+		if (checkIfMarkedForDeletion(index)) {
+			sendResponse(tS->commSocket, true, "mail already marked for deletion");
+		} else {
+			setToDelete(index, true);
+			sendResponse(tS->commSocket, false, "mail marked for deletion");
+		}
 	}
 }
 
+
+/*
+ * Function sends a client status info containing how many mails are in maildir and what is their size
+ *
+ * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ *
+ */
 void statOperation(threadStruct *tS) {
-	int mails = sumOfMails();
-	size_t size = sumOfSizeMails();
-	sendResponse(tS->commSocket, false, to_string(mails)+" "+to_string(size));
+	sendResponse(tS->commSocket, false, to_string(sumOfMails())+" "+to_string(sumOfSizeMails()));
 }
 
 
@@ -608,6 +708,7 @@ void statOperation(threadStruct *tS) {
  * Function does just nothing, typical NOOP, it is here just so the application looks nice and that every operation has its own function, sends blank response to client
  *
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ *
  */
 void noopOperation(threadStruct *tS) {
 	sendResponse(tS->commSocket, false, "");
@@ -618,9 +719,10 @@ void noopOperation(threadStruct *tS) {
  * Function returns the params of mail on certain index
  *
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
- * @param int index index of mail we are looking for
+ * @param unsigned int index index of mail we are looking for
+ *
  */
-void listIndexOperation(threadStruct *tS, int index) {
+void listIndexOperation(threadStruct *tS, unsigned int index) {
 	if (!checkIndexOfMail(index)) {
 		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
@@ -640,9 +742,10 @@ void listIndexOperation(threadStruct *tS, int index) {
  * Function returns info about the email almost the same as the list, but it also returns the content of mail including its header
  *
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
- * @param int index index of mail we are looking for
+ * @param unsigned int index index of mail we are looking for
+ *
  */
-void retrOperation(threadStruct *tS, int index) {
+void retrOperation(threadStruct *tS, unsigned int index) {
 	if (!checkIndexOfMail(index)) {
 		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
@@ -664,14 +767,15 @@ void retrOperation(threadStruct *tS, int index) {
  * Function takes all e-mails, sums nondeleted and sums their size and sends it to the client, after that, the server sends size of every single messages one by one
  *
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ *
  */
 void listOperation(threadStruct *tS) {
 	sendResponse(tS->commSocket, false, ""+to_string(sumOfMails())+" messages ("+to_string(sumOfSizeMails())+" octets)");
 
 
 	// take mails one by one, hash them and send them with id
-	int index = 1;
-	int localIndex = index;
+	unsigned int index = 1;
+	unsigned int localIndex = index;
 	while (index <= sumOfMails()) {
 		if (!checkIfMarkedForDeletion(index)) {
 			size_t size;
@@ -702,19 +806,19 @@ string hashForUidl(threadStruct *tS, string mailName) {
  * Function generates a unique md5 hash for every mail in maildir and sends it to the client
  *
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ *
  */
 void uidlOperation(threadStruct *tS) {
-	int sum = sumOfMails();
-	if (sum == 0) {
+	if (sumOfMails() == 0) {
 		sendResponse(tS->commSocket, false, "0 messages in maildrop");
 		sendMessage(tS->commSocket, ".");
-	} else if (sum > 0) {
-		sendResponse(tS->commSocket, false, to_string(sum)+" messages");
+	} else if (sumOfMails() > 0) {
+		sendResponse(tS->commSocket, false, to_string(sumOfMails())+" messages");
 
 		// take mails one by one, hash them and send them with id
 		unsigned int index = 1;
 		unsigned int localIndex = index;
-		while (index <= sum) {
+		while (index <= sumOfMails()) {
 			if (!checkIfMarkedForDeletion(index)) {
 				string mailName;
 				copyName(index, &mailName);
@@ -732,7 +836,8 @@ void uidlOperation(threadStruct *tS) {
  * Function generates a unique md5 hash for mail on index given in second parameter in maildir and sends it to the client
  *
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
- * @param int index index of a mail
+ * @param unsigned int index index of a mail
+ *
  */
 void uidlIndexOperation(threadStruct *tS, unsigned int index) {
 	if (!checkIndexOfMail(index)) {
@@ -758,8 +863,9 @@ void deleteMarkedForDeletion(threadStruct *tS) {
  * Function takes the body of the e-mail (without header) and returns rows of lines
  *
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
- * @param int index index of a mail
+ * @param unsigned int index index of a mail
  * @param int rows number of rows requested from mail
+ *
  */
 void topIndexOperation(threadStruct *tS, unsigned int index, int rows) {
 	if (!checkIndexOfMail(index)) {
@@ -778,6 +884,9 @@ void topIndexOperation(threadStruct *tS, unsigned int index, int rows) {
 }
 
 
+/*
+ * TODO i should close current thread there and remove it from vector
+ */
 void closeThread(threadStruct *tS) {
 
 }
@@ -813,6 +922,7 @@ size_t getFileSize(string file) {
  * Function gets all emails from maildir and fills them into the global list of mails
  *
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ *
  */
 void createListFromMails(threadStruct *tS) {
 
@@ -841,6 +951,7 @@ void createListFromMails(threadStruct *tS) {
  *
  * @param string received message that is being validated
  * @param int operation operation that should be processed
+ * @returns bool true if request and its operands were ok, false otherwise
  */
 bool validateRequest(string received, int operation) {
 
@@ -852,6 +963,7 @@ bool validateRequest(string received, int operation) {
  * Function executes the mail servers, first of all it tries to lock the maildir by mutex, if the lock is successful, all mails from new are moved to cur, list from mails is created. After that, server responds to clients with amount of mails and their complete size. After the "init" the server waits for requests and works on these operations.
  *
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
+ *
  */
 void executeMailServer(threadStruct *tS) {
 
@@ -890,15 +1002,15 @@ void executeMailServer(threadStruct *tS) {
 					} else if (op == 5) {
 						listOperation(tS);
 					} else if (op == 6) {
-						listIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+						listIndexOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
 					} else if (op == 7) {
 						noopOperation(tS);
 					} else if (op == 8) {
 						statOperation(tS);
 					} else if (op == 9) {
-						retrOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+						retrOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
 					} else if (op == 10) {
-						deleOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+						deleOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
 					} else if (op == 11) {
 						rsetOperation(tS);
 					} else if (op == 12) {
@@ -1099,6 +1211,10 @@ void createMailCfg() {
 }
 
 
+/*
+ * TODO
+ *
+ */
 void closeThreads() {
 	while(!threads.empty()) {
 		closeConnection(threads.at(threads.size()-1)->commSocket);
