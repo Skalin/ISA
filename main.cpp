@@ -911,8 +911,7 @@ void executeMailServer(threadStruct *tS) {
 					} else if (op == 13) {
 						uidlIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
 					} else if (op == 14) {
-						// TODO
-						topIndexOperation(tS, stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr), 1);
+						topIndexOperation(tS, stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", false), nullptr), stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", true), nullptr));
 					} else {
 						sendResponse(tS->commSocket, true, "invalid operation");
 					}
