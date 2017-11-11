@@ -1,6 +1,5 @@
 #include <iostream>
 #include <unistd.h>
-#include <cstring>
 #include <sys/stat.h>
 #include <mutex>
 #include <dirent.h>
@@ -13,6 +12,7 @@
 #include <csignal>
 #include <vector>
 #include <list>
+#include <algorithm>
 #include "md5.cpp"
 
 using namespace std;
@@ -21,7 +21,8 @@ mutex mutexerino;
 
 
 string mailConfig = "./mail.cfg";
-string mailDir = "";
+string mailDir;
+
 
 typedef struct {
 	string mailDir = "";
@@ -41,10 +42,11 @@ typedef struct mailStruct{
 	unsigned long id;
 	string name;
 	size_t size;
+	string dir;
 	bool toDelete;
 } *mailStructPtr;
 
-std::list <mailStruct> mailList;
+list <mailStruct> mailList;
 
 /*
  * Function prints an error message on cerr and exits program
@@ -233,35 +235,36 @@ bool checkUsersFile(const char *name, string &user, string &pass) {
  */
 int getOperation(string message) {
 
-	string op = returnSubstring(message, "\r\n", false);
+	string command = returnSubstring(message, "\r\n", false);
+	transform(command.begin(), command.end(), command.begin(), ::tolower);
 
-	if (returnSubstring(op, " ", false) == "APOP" || returnSubstring(op, " ", false) == "apop") {
+	if (returnSubstring(command, " ", false) == "apop") {
 		return 1;
-	} else if (returnSubstring(op, " ", false) == "USER" || returnSubstring(op, " ", false) == "user") {
+	} else if (returnSubstring(command, " ", false) == "user") {
 		return 2;
-	} else if (returnSubstring(op, " ", false) == "PASS" || returnSubstring(op, " ", false) == "pass") {
+	} else if (returnSubstring(command, " ", false) == "pass") {
 		return 3;
-	} else if (op == "QUIT" || op == "quit") {
+	} else if (command == "quit") {
 		return 4;
-	} else if (op == "LIST" || op == "list") {
+	} else if (command == "list") {
 		return 5;
-	} else if (returnSubstring(op, " ", false) == "LIST" || returnSubstring(op, " ", false) == "list") {
+	} else if (returnSubstring(command, " ", false) == "list") {
 		return 6;
-	} else if (op == "NOOP" || op == "noop") {
+	} else if (command == "noop") {
 		return 7;
-	} else if (op == "STAT" || op == "stat") {
+	} else if (command == "stat") {
 		return 8;
-	} else if (returnSubstring(op, " ", false) == "RETR" || returnSubstring(op, " ", false) == "retr") {
+	} else if (returnSubstring(command, " ", false) == "retr") {
 		return 9;
-	} else if (returnSubstring(op, " ", false) == "DELE" || returnSubstring(op, " ", false) == "dele") {
+	} else if (returnSubstring(command, " ", false) == "dele") {
 		return 10;
-	} else if (op == "RSET" || op == "rset") {
+	} else if (command == "rset") {
 		return 11;
-	} else if (op == "UIDL" || op == "uidl") {
+	} else if (command == "uidl") {
 		return 12;
-	} else if (returnSubstring(op, " ", false) == "UIDL" || returnSubstring(op, " ", false) == "uidl") {
+	} else if (returnSubstring(command, " ", false) == "uidl") {
 		return 13;
-	} else if (returnSubstring(op, " ", false) == "TOP" || returnSubstring(op, " ", false) == "top") {
+	} else if (returnSubstring(command, " ", false) == "top") {
 		return 14;
 	} else {
 		return 0;
@@ -448,13 +451,14 @@ void disposeList() {
  * @param size_t size size of the mail in octets
  *
  */
-void insertMail(string name, size_t size) {
+void insertMail(string name, size_t size, string dir) {
 
 	auto *mail = new mailStruct;
 
 	mail->id = mailList.size()+1;
-	mail->name = name;
+	mail->name.assign(name);
 	mail->size = size;
+	mail->dir.assign(dir);
 	mail->toDelete = false;
 
 	mailList.push_back(*mail);
@@ -513,6 +517,23 @@ void copyToDelete(unsigned int index, bool *toDelete) {
 
 
 /*
+ * Function copies the deletion flag of mail from list on certain index and stores it in the pointer in the second argument
+ *
+ * @param unsigned int index index of mail
+ * @param string *dir pointer to the variable where path to maildir will be stored
+ *
+ */
+void copyDir(unsigned int index, string *dir) {
+	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
+		if (i->id == index) {
+			*dir = i->dir;
+			break;
+		}
+	}
+}
+
+
+/*
  * Function sets the deletion flag of mail on certain index
  *
  * @param unsigned int index index of mail
@@ -558,6 +579,21 @@ unsigned int sumOfMails() {
 }
 
 
+
+/*
+ * Function returns sum of all mails that are not marked for deletion
+ *
+ * @returns unsigned int sum of all mails
+ */
+unsigned int sumOfAllMails() {
+	unsigned int sum = 0;
+	for (list<mailStruct>::iterator i = mailList.begin(); i != mailList.end(); i++) {
+			sum++;
+	}
+	return sum;
+}
+
+
 /*
  * Function checks if the index of mail given is in the list
  *
@@ -565,7 +601,7 @@ unsigned int sumOfMails() {
  * @returns bool true if index is in range, false otherwise
  */
 bool checkIndexOfMail(unsigned int index) {
-	return (index > 0 && index <= mailList.size());
+	return (index > 0 && index <= sumOfAllMails());
 }
 
 
@@ -643,18 +679,17 @@ void closeConnection(int socket) {
 	sendResponse(socket, false, "bye");
 	close(socket);
 	mutexerino.unlock();
-	pthread_exit(nullptr);
 }
 
 
 /*
- * Function checks if the maildir contains /new, /cur and /tmp folders
+ * Function checks if the maildir contains /new and /cur  (/tmp folders - currently disabled)
  *
  * @param string dir name of the folder with Maildir
  * @returns bool true if maildir is alright, false otherwise
  */
 bool checkMailDir(string dir) {
- 	return (isDirectory((dir+"/new").c_str()) && isDirectory((dir+"/cur").c_str()) && isDirectory((dir+"/tmp").c_str()));
+ 	return (isDirectory((dir+"/new").c_str()) && isDirectory((dir+"/cur").c_str())/* && isDirectory((dir+"/tmp").c_str())*/);
 }
 
 
@@ -681,7 +716,7 @@ void rsetOperation(threadStruct *tS) {
  */
 void deleOperation(threadStruct *tS, unsigned int index) {
 	if (!checkIndexOfMail(index)) {
-		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfAllMails())+" messages in maildrop)");
 	} else {
 		if (checkIfMarkedForDeletion(index)) {
 			sendResponse(tS->commSocket, true, "mail already marked for deletion");
@@ -772,16 +807,13 @@ void retrOperation(threadStruct *tS, unsigned int index) {
 void listOperation(threadStruct *tS) {
 	sendResponse(tS->commSocket, false, ""+to_string(sumOfMails())+" messages ("+to_string(sumOfSizeMails())+" octets)");
 
-
-	// take mails one by one, hash them and send them with id
+	// take mails one by one and send them
 	unsigned int index = 1;
-	unsigned int localIndex = index;
-	while (index <= sumOfMails()) {
+	while (index <= sumOfAllMails()) {
 		if (!checkIfMarkedForDeletion(index)) {
 			size_t size;
 			copySize(index, &size);
-			sendMessage(tS->commSocket, to_string(localIndex)+" "+to_string(size));
-			localIndex++;
+			sendMessage(tS->commSocket, to_string(index)+" "+to_string(size));
 		}
 		index++;
 	}
@@ -817,13 +849,11 @@ void uidlOperation(threadStruct *tS) {
 
 		// take mails one by one, hash them and send them with id
 		unsigned int index = 1;
-		unsigned int localIndex = index;
-		while (index <= sumOfMails()) {
+		while (index <= sumOfAllMails()) {
 			if (!checkIfMarkedForDeletion(index)) {
 				string mailName;
 				copyName(index, &mailName);
-				sendResponse(tS->commSocket, false, to_string(localIndex)+" "+hashForUidl(tS, mailName));
-				localIndex++;
+				sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(tS, mailName));
 			}
 			index++;
 		}
@@ -855,7 +885,17 @@ void uidlIndexOperation(threadStruct *tS, unsigned int index) {
 
 
 void deleteMarkedForDeletion(threadStruct *tS) {
-
+	unsigned int i = 0;
+	while (i <= sumOfMails()) {
+		if (checkIfMarkedForDeletion(i)) {
+			string dir;
+			string name;
+			copyDir(i, &dir);
+			copyName(i, &name);
+			deleteFile(dir+"/cur/"+name);
+		}
+		i++;
+	}
 }
 
 
@@ -918,6 +958,35 @@ size_t getFileSize(string file) {
 }
 
 
+
+void loadMailsFromCfg(threadStruct *tS) {
+
+
+	string line;
+
+	ifstream config (mailConfig.c_str());
+	if (config.is_open()) {
+		int i = 0;
+		string dir;
+		string name;
+		while(getline(config, line)) {
+			if (i % 2 == 0) {
+				dir = returnSubstring(line, "dir = ", true);
+			} else {
+				name = returnSubstring(line, "name = ", true);
+				cout << "DIR: "<< dir << endl;
+				cout << "name: "<< name << endl;
+				cout << "Size: " << getFileSize(dir+"/cur/"+name) << endl;
+				if (fileExists(string(dir+"/cur/"+name).c_str())) {
+					insertMail(name, getFileSize(dir+"/cur/"+name), dir);
+				}
+			}
+			i++;
+		}
+		deleteFile(mailConfig);
+	}
+}
+
 /*
  * Function gets all emails from maildir and fills them into the global list of mails
  *
@@ -925,6 +994,9 @@ size_t getFileSize(string file) {
  *
  */
 void createListFromMails(threadStruct *tS) {
+
+
+	loadMailsFromCfg(tS);
 
 	size_t size = 0;
 	string name = "";
@@ -938,8 +1010,7 @@ void createListFromMails(threadStruct *tS) {
 			if (string(ent->d_name) == ".." || string(ent->d_name) == ".") {
 				continue;
 			} else {
-				cout << "Inserting mails" << endl;
-				insertMail(name+":2,", size);
+				insertMail(name+":2,", size, tS->mailDir);
 			}
 		}
 	}
@@ -965,7 +1036,49 @@ bool validateRequest(string received, int operation) {
  * @param threadStruct *tS thread structure containing maildir info and other useful informations
  *
  */
-void executeMailServer(threadStruct *tS) {
+void executeMailServer(threadStruct *tS, int op, string received) {
+	if (op > 0) {
+		cout << "OP: " << op << endl;
+		if (validateRequest(received, op)) {
+			// operations
+			if (op > 0 && op <= 3) {
+				sendResponse(tS->commSocket, true, "already authorised");
+			} else if (op == 4) {
+				quitOperation(tS);
+				closeConnection(tS->commSocket);
+			} else if (op == 5) {
+				listOperation(tS);
+			} else if (op == 6) {
+				listIndexOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+			} else if (op == 7) {
+				noopOperation(tS);
+			} else if (op == 8) {
+				statOperation(tS);
+			} else if (op == 9) {
+				retrOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+			} else if (op == 10) {
+				deleOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+			} else if (op == 11) {
+				rsetOperation(tS);
+			} else if (op == 12) {
+				uidlOperation(tS);
+			} else if (op == 13) {
+				uidlIndexOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
+			} else if (op == 14) {
+				topIndexOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", false), nullptr), stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", true), nullptr));
+			} else {
+				sendResponse(tS->commSocket, true, "invalid operation");
+			}
+		} else {
+			sendResponse(tS->commSocket, true, "invalid operation");
+		}
+	} else {
+		sendResponse(tS->commSocket, true, "invalid operation");
+	}
+}
+
+
+void lockMaildir(threadStruct *tS) {
 
 	if (mutexerino.try_lock()) {
 		if (checkMailDir(tS->mailDir)) {
@@ -984,52 +1097,7 @@ void executeMailServer(threadStruct *tS) {
 
 
 	sendResponse(tS->commSocket, false, "user's maildrop has "+to_string(sumOfMails())+" messages ("+to_string(sumOfSizeMails())+" octets)");
-
-	for(;;) {
-		char received[1024];
-		if (recv(tS->commSocket, received, 1024, 0) <= 0) {
-			break;
-		} else {
-			int op;
-			if ((op = getOperation(received)) != 0) {
-				if (validateRequest(string(received), op)) {
-					// operations
-					if (op > 0 && op <= 3) {
-						sendResponse(tS->commSocket, true, "already authorised");
-					} else if (op == 4) {
-						quitOperation(tS);
-						closeConnection(tS->commSocket);
-					} else if (op == 5) {
-						listOperation(tS);
-					} else if (op == 6) {
-						listIndexOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
-					} else if (op == 7) {
-						noopOperation(tS);
-					} else if (op == 8) {
-						statOperation(tS);
-					} else if (op == 9) {
-						retrOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
-					} else if (op == 10) {
-						deleOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
-					} else if (op == 11) {
-						rsetOperation(tS);
-					} else if (op == 12) {
-						uidlOperation(tS);
-					} else if (op == 13) {
-						uidlIndexOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), nullptr));
-					} else if (op == 14) {
-						topIndexOperation(tS, (unsigned) stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", false), nullptr), stoi(returnSubstring(returnSubstring(returnSubstring(string(received), "\r\n", false), " ", true), " ", true), nullptr));
-					} else {
-						sendResponse(tS->commSocket, true, "invalid operation");
-					}
-				} else {
-					sendResponse(tS->commSocket, true, "invalid operation");
-				}
-			}
-		}
-	}
 }
-
 
 /*
  * Function authorises user depending on his credentials. It selectes between two modes, hashed and unhashed mode
@@ -1105,6 +1173,9 @@ bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHa
 		}
 
 	}
+
+	lockMaildir(tS);
+
 	return true;
 }
 
@@ -1117,9 +1188,10 @@ bool userIsAuthorised(int op, threadStruct *tS, char *receivedMessage, bool isHa
  */
 void *clientThread(void *tS) {
 
-	threads.push_back((threadStruct *) tS);
 	char receivedMessage[1024];
 	auto *tParam = (threadStruct *) tS;
+
+	threads.push_back(tParam);
 
 
 	clock_t clock1 = clock();
@@ -1135,10 +1207,11 @@ void *clientThread(void *tS) {
 				clock1 = clock();
 				int op = 0;
 				if ((op = getOperation(receivedMessage)) != 0) {
-					if (userIsAuthorised(op, tParam, receivedMessage, tParam->isHashed)) {
-						executeMailServer(tParam);
+					bool isAuthorised;
+					if (isAuthorised) {
+						executeMailServer(tParam, op, receivedMessage);
 					} else {
-						continue;
+						isAuthorised = userIsAuthorised(op, tParam, receivedMessage, tParam->isHashed);
 					}
 				} else {
 					sendResponse(tParam->commSocket, true, "invalid operation");
@@ -1160,22 +1233,23 @@ void resetMail() {
 
 	string line;
 
-	ifstream users (mailConfig.c_str());
-	if (users.is_open()) {
+	ifstream config (mailConfig.c_str());
+	if (config.is_open()) {
 		int i = 0;
-		string mailDir;
+		string dir;
 		string name;
-		while(getline(users, line)) {
+		while(getline(config, line)) {
 			if (i % 2 == 0) {
-				mailDir = returnSubstring(line, "dir = ", true);
+				dir = returnSubstring(line, "dir = ", true);
 			} else {
 				name = returnSubstring(line, "name = ", true);
-				copyFile(mailDir+"/cur/"+name, mailDir+"/new/"+returnSubstring(name, ":2,", false));
-				deleteFile(mailDir+"/cur/"+name);
+				cout << "DIR: "<< dir << endl;
+				cout << "name: "<< name << endl;
+				copyFile(dir+"/cur/"+name, dir+"/new/"+returnSubstring(name, ":2,", false));
+				deleteFile(dir+"/cur/"+name);
 			}
 			i++;
 		}
-
 	deleteFile(mailConfig);
 	}
 
@@ -1190,8 +1264,8 @@ void resetMail() {
  */
 void createMailCfg() {
 
-	string directory = mailDir;
 	string name;
+	string dir;
 	ofstream file;
 	file.open(mailConfig);
 
@@ -1201,11 +1275,12 @@ void createMailCfg() {
 		copyToDelete(i,&toDelete);
 		if (!toDelete) {
 			copyName(i, &name);
-			cout << "Mailconfig: " << directory << endl << name << endl;
-			file << "dir = " << directory << endl;
+			copyDir(i, &dir);
+			cout << "Inserting in cfg" << endl;
+			file << "dir = " << dir << endl;
 			file << "name = " << name << endl;
-			i++;
 		}
+		i++;
 	}
 	file.close();
 }
@@ -1217,7 +1292,7 @@ void createMailCfg() {
  */
 void closeThreads() {
 	while(!threads.empty()) {
-		closeConnection(threads.at(threads.size()-1)->commSocket);
+		closeConnection(threads.back()->commSocket);
 		threads.pop_back();
 	}
 }
@@ -1230,7 +1305,7 @@ void closeThreads() {
 void siginthandler(int param) {
 	createMailCfg();
 	disposeList();
-	closeThreads();
+	//closeThreads();
 	exit(EXIT_SUCCESS);
 }
 
@@ -1312,7 +1387,7 @@ int main(int argc, char *argv[]) {
 
 			pthread_t thread;
 
-			threadStruct *tS = new threadStruct;
+			auto *tS = new threadStruct;
 
 			tS->serverUser = serverUser;
 			tS->serverPass = serverPass;
