@@ -36,7 +36,7 @@ typedef struct {
 	string pidTimeStamp = "";
 } threadStruct;
 
-vector<threadStruct*> threads;
+vector<threadStruct> threads;
 
 typedef struct mailStruct{
 	unsigned long id;
@@ -113,7 +113,8 @@ void printHelp() {
 bool checkParams(int argc) {
 
 	// TODO
-	/* if ((argc > 1 && argc < 7) || argc > 9) {
+	cout << argc << endl;
+	/*if ((argc > 1 && argc < 7) || argc > 9) {
 		throwException("ERROR: Wrong amount of arguments.");
 	}*/
 	
@@ -150,6 +151,9 @@ bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset
 				break;
 			case 'p':
 				port = atoi(optarg);
+				if (port < 0 || port > 65535) {
+					throwException("ERROR: Wrong range of port");
+				}
 				break;
 			case 'd':
 				mailDir = optarg;
@@ -166,6 +170,19 @@ bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset
 			default:
 				throwException("ERROR: Wrong arguments.");
 				return false;
+		}
+	}
+
+	cout << port << endl;
+	if (reset) {
+		if (argc > 3) {
+			if (mailDir == "" || usersFile == "" || !port) {
+				throwException("ERROR: Wrong arguments");
+			}
+		}
+	} else {
+		if (mailDir == "" || usersFile == "" || !port) {
+			throwException("ERROR: Wrong arguments");
 		}
 	}
 	return true;
@@ -928,14 +945,21 @@ void topIndexOperation(threadStruct *tS, unsigned int index, int rows) {
  * TODO i should close current thread there and remove it from vector
  */
 void closeThread(threadStruct *tS) {
+	int i = 0;
+	for(std::vector<threadStruct>::iterator it = threads.begin(); it != threads.end(); ++it) {
+		if (it->commSocket == tS->commSocket) {
 
+		}
+		i++;
+	}
 }
 
 /*
- * TODO
+ * TODO dont know how to close single thread and delete it from vector...
  */
 void quitOperation(threadStruct *tS) {
 	deleteMarkedForDeletion(tS);
+	closeConnection(tS->commSocket);
 	closeThread(tS);
 }
 
@@ -974,9 +998,6 @@ void loadMailsFromCfg(threadStruct *tS) {
 				dir = returnSubstring(line, "dir = ", true);
 			} else {
 				name = returnSubstring(line, "name = ", true);
-				cout << "DIR: "<< dir << endl;
-				cout << "name: "<< name << endl;
-				cout << "Size: " << getFileSize(dir+"/cur/"+name) << endl;
 				if (fileExists(string(dir+"/cur/"+name).c_str())) {
 					insertMail(name, getFileSize(dir+"/cur/"+name), dir);
 				}
@@ -1191,7 +1212,7 @@ void *clientThread(void *tS) {
 	char receivedMessage[1024];
 	auto *tParam = (threadStruct *) tS;
 
-	threads.push_back(tParam);
+	threads.push_back(*tParam);
 
 
 	clock_t clock1 = clock();
@@ -1227,7 +1248,8 @@ void *clientThread(void *tS) {
 
 
 /*
- * TODO
+ * Function resets maildir to default settings - moves all mails from cur to previous folders, does not work with deleted mails
+ *
  */
 void resetMail() {
 
@@ -1243,8 +1265,6 @@ void resetMail() {
 				dir = returnSubstring(line, "dir = ", true);
 			} else {
 				name = returnSubstring(line, "name = ", true);
-				cout << "DIR: "<< dir << endl;
-				cout << "name: "<< name << endl;
 				copyFile(dir+"/cur/"+name, dir+"/new/"+returnSubstring(name, ":2,", false));
 				deleteFile(dir+"/cur/"+name);
 			}
@@ -1276,7 +1296,6 @@ void createMailCfg() {
 		if (!toDelete) {
 			copyName(i, &name);
 			copyDir(i, &dir);
-			cout << "Inserting in cfg" << endl;
 			file << "dir = " << dir << endl;
 			file << "name = " << name << endl;
 		}
@@ -1292,7 +1311,7 @@ void createMailCfg() {
  */
 void closeThreads() {
 	while(!threads.empty()) {
-		closeConnection(threads.back()->commSocket);
+		closeConnection(threads.back().commSocket);
 		threads.pop_back();
 	}
 }
