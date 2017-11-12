@@ -1462,29 +1462,23 @@ int main(int argc, char *argv[]) {
 	}
 
 	socklen_t clientlen = sizeof(clientaddr);
+
 	while (true) {
 		int commSocket;
-
 		if ((commSocket = accept(serverSocket, (struct sockaddr *) &clientaddr, &clientlen)) > 0) {
-
 			pthread_t thread;
-
 			auto *tS = new threadStruct;
-
 			tS->serverUser = serverUser;
 			tS->serverPass = serverPass;
 			tS->isHashed = isHashed;
 			tS->mailDir= mailDir;
 			tS->commSocket = commSocket;
 			tS->pidTimeStamp = generatePidTimeStamp();
-
-
 			pthread_create(&thread, nullptr, clientThread, tS);
-
 		} else {
 			break;
 		}
 	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }
