@@ -171,7 +171,7 @@ bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset
 				return false;
 		}
 	}
-
+/*
 	if (reset) {
 		if (argc > 3) {
 			if (mailDir == "" || usersFile == "" || !port) {
@@ -182,7 +182,7 @@ bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset
 		if (mailDir == "" || usersFile == "" || !port) {
 			throwException("ERROR: Wrong arguments");
 		}
-	}
+	}*/
 	return true;
 }
 
