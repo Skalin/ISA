@@ -411,7 +411,7 @@ bool mailExists(string dir, string name) {
  * @param string path full path of the email containing also its name
  */
 bool deleteFile(string path) {
-	return !remove(path.c_str());
+	return remove(path.c_str());
 }
 
 
@@ -654,9 +654,11 @@ void sendMail(threadStruct *tS, string name, int lines) {
 	while (getline(file, line) && i <= lines) {
 		if (line == "" && header) {
 			header = false;
+			sendMessage(tS->commSocket, line);
 			continue;
 		}
 		if (line != "" && header) {
+			sendMessage(tS->commSocket, line);
 			continue;
 		}
 		sendMessage(tS->commSocket, line);
@@ -781,7 +783,7 @@ void listIndexOperation(threadStruct *tS, unsigned int index) {
 		} else {
 			size_t size;
 			copySize(index, &size);
-			sendResponse(tS->commSocket, false, to_string(size)+" octets");
+			sendResponse(tS->commSocket, false, to_string(index)+" "+to_string(size));
 		}
 	}
 
@@ -911,8 +913,8 @@ void deleteMarkedForDeletion(threadStruct *tS, int *errors) {
 			string name;
 			copyDir(i, &dir);
 			copyName(i, &name);
-			if (deleteFile(dir+"/cur/"+name)) {
-				++*errors;
+			if (!deleteFile(dir+"/cur/"+name)) {
+				*errors += 1;
 			}
 		}
 		i++;
@@ -962,15 +964,15 @@ void closeThread(threadStruct *tS) {
  * TODO dont know how to close single thread and delete it from vector...
  */
 void quitOperation(threadStruct *tS) {
-	int errors;
+	int errors = 0;
 	deleteMarkedForDeletion(tS, &errors);
 	if (errors) {
 		sendResponse(tS->commSocket, true, "some deleted messages not removed");
 	} else {
 		if (sumOfMails() != 1) {
-			sendResponse(tS->commSocket, false, tS->serverUser+"POP3 server signing off, "+to_string(sumOfMails())+" messages left");
+			sendResponse(tS->commSocket, false, tS->serverUser+" POP3 server signing off, "+to_string(sumOfMails())+" messages left");
 		} else {
-			sendResponse(tS->commSocket, false, tS->serverUser+"POP3 server signing off, "+to_string(sumOfMails())+" message left");
+			sendResponse(tS->commSocket, false, tS->serverUser+" POP3 server signing off, "+to_string(sumOfMails())+" message left");
 		}
 
 	}
@@ -1164,9 +1166,7 @@ void executeMailServer(threadStruct *tS, int op, string received) {
 void lockMaildir(threadStruct *tS) {
 
 	if (mutexerino.try_lock()) {
-		if (checkMailDir(tS->mailDir)) {
-			sendResponse(tS->commSocket, false, "maildrop locked and ready");
-		} else {
+		if (!checkMailDir(tS->mailDir)) {
 			sendResponse(tS->commSocket, true, "mail directory not OK");
 			closeConnection(tS->commSocket);
 		}
@@ -1282,11 +1282,12 @@ void *clientThread(void *tS) {
 
 	sendResponse(tParam->commSocket, false, "POP3 server ready "+tParam->pidTimeStamp);
 	for (;;) {
-		if (((clock() - clock1) / CLOCKS_PER_SEC) <= timeout) {
-
+		if ((double) ((clock() - clock1) / CLOCKS_PER_SEC) <= timeout) {
+			cout << ((double) clock() - clock1 / CLOCKS_PER_SEC) << endl;
 			if (((int) recv(tParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
 				break;
 			} else {
+				clock1 = clock();
 				int op = 0;
 				if ((op = getOperation(receivedMessage)) != 0) {
 					bool isAuthorized;
