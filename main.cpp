@@ -34,6 +34,7 @@ typedef struct {
 	string serverPass = "";
 	int commSocket = -1;
 	string pidTimeStamp = "";
+	bool authorized = false;
 } threadStruct;
 
 vector<threadStruct> threads;
@@ -226,18 +227,19 @@ bool checkUsersFile(const char *name, string &user, string &pass) {
 	}
 	ifstream users (name);
 	if (users.is_open()) {
-		while (getline(users, line)) {
+		getline(users, line);
 			if (returnSubstring(line, "username = ", true) != "") {
 				user = returnSubstring(line, "username = ", true);
-			} else if (returnSubstring(line, "password = ", true) != "") {
-				pass = returnSubstring(line, "password = ", true);
+				getline(users, line);
+				if (returnSubstring(line, "password = ", true) != "") {
+					pass = returnSubstring(line, "password = ", true);
+				}
 			}
-			if (user != "" && pass != "") {
-				break;
-			}
+		if (user == "" || pass == "") {
+				return false;
 		}
+		users.close();
 	}
-	users.close();
 	return true;
 }
 
@@ -287,6 +289,17 @@ int getOperation(string message) {
 }
 
 
+int isPidUnique(string PTS) {
+	int i = 0;
+	for(std::vector<threadStruct>::iterator it = threads.begin(); it != threads.end(); ++it) {
+		if (it->pidTimeStamp == PTS) {
+			i++;
+		}
+	}
+	return i;
+}
+
+
 /*
  * Function generates a timestamp with hostname and pid in it
  * Time in this function is a amount of seconds that passed since 1.1.1970, pid is a current process id, hostname is hostname of the server
@@ -306,7 +319,12 @@ string generatePidTimeStamp(){
 	hostname[511] = '\0';
 	gethostname(hostname,512);
 	host = gethostbyname(hostname);
-	return ("<"+pidStr+"."+to_string(currTime)+"@"+host->h_name+">");
+	string pidTimeStamp = "<"+pidStr+"."+to_string(currTime)+"@"+host->h_name+">";
+	int uniq = 0;
+	if ((uniq = isPidUnique(pidTimeStamp)) > 0) {
+		pidTimeStamp = returnSubstring(pidTimeStamp, "@", false)+to_string(uniq)+returnSubstring(pidTimeStamp, "@", true);
+	}
+	return (pidTimeStamp);
 }
 
 
@@ -420,28 +438,17 @@ bool deleteFile(string path) {
  *
  * @param threadStruct *tS thread structure containing mail info
  */
-void moveNewToCur(threadStruct *tS) {
-
-	DIR *dir;
-	struct dirent *ent;
+void moveNewToCur(threadStruct *tS, string name) {
 
 
 	string mailDirNew = tS->mailDir+"/new/";
 	string mailDirCur = tS->mailDir+"/cur/";
 
-	if ((dir = opendir(mailDirNew.c_str())) != nullptr) {
-		while ((ent = readdir(dir)) != nullptr) {
-			if (string(ent->d_name) == "." || string(ent->d_name) == "..") {
-				continue;
-			}
-			if (mailExists(mailDirCur, ent->d_name)) {
-				deleteFile(mailDirCur+ent->d_name);
-			}
-			copyFile(mailDirNew+ent->d_name, mailDirCur+ent->d_name+":2,");
-			deleteFile(mailDirNew+ent->d_name);
+		if (mailExists(mailDirCur, name)) {
+			deleteFile(mailDirCur+name);
 		}
-	}
-
+		copyFile(mailDirNew+name, mailDirCur+name+":2,");
+		deleteFile(mailDirNew+name);
 }
 
 
@@ -645,7 +652,7 @@ size_t sumOfSizeMails() {
  *
  */
 void sendMail(threadStruct *tS, string name, int lines) {
-	string line;
+	string line = "";
 	bool header = true;
 	int i = 1;
 
@@ -661,7 +668,11 @@ void sendMail(threadStruct *tS, string name, int lines) {
 			sendMessage(tS->commSocket, line);
 			continue;
 		}
-		sendMessage(tS->commSocket, line);
+		if (line.find(".") != string::npos && line.find(".") == 0) {
+			sendMessage(tS->commSocket, "."+line);
+		} else {
+			sendMessage(tS->commSocket, line);
+		}
 		i++;
 	}
 }
@@ -674,12 +685,16 @@ void sendMail(threadStruct *tS, string name, int lines) {
  * @param string name name of the mail
  */
 void sendMailWithHeader(threadStruct *tS, string name) {
-	string line;
+	string line = "";
 
 	ifstream file;
 	file.open(tS->mailDir+"/cur/"+name);
 	while (getline(file, line)) {
-		sendMessage(tS->commSocket, line);
+		if (line.find(".") != string::npos && line.find(".") == 0) {
+			sendMessage(tS->commSocket, "."+line);
+		} else {
+			sendMessage(tS->commSocket, line);
+		}
 	}
 
 	file.close();
@@ -835,7 +850,6 @@ void listOperation(threadStruct *tS) {
 		index++;
 	}
 	sendMessage(tS->commSocket, ".");
-
 }
 
 
@@ -994,6 +1008,19 @@ size_t getFileSize(string file) {
 	size_t size = (unsigned) fileStream.tellg();
 	fileStream.seekg(0);
 
+	stringstream buffer;
+	buffer << fileStream.rdbuf();
+	char string[buffer.str().length()];
+	strcpy(string, buffer.str().c_str());
+	for (unsigned int i = 0; i < strlen(string); i++) {
+		if(string[i] == '\n' && string[i-1] != '\r') {
+			size++;
+		}
+		/*if() {
+			size++;
+		}*/
+	}
+
 	fileStream.close();
 	return size;
 }
@@ -1036,19 +1063,18 @@ void createListFromMails(threadStruct *tS) {
 
 	loadMailsFromCfg(tS);
 
-	size_t size = 0;
 	string name = "";
 	DIR *dir;
 	struct dirent *ent;
 
 	if ((dir = opendir((tS->mailDir+"/new/").c_str())) != nullptr) {
 		while ((ent = readdir(dir)) != nullptr) {
-			size = getFileSize(tS->mailDir+"/new/"+ent->d_name);
-			name = ent->d_name;
 			if (string(ent->d_name) == ".." || string(ent->d_name) == ".") {
 				continue;
 			} else {
-				insertMail(name+":2,", size, tS->mailDir);
+				name = ent->d_name;
+				insertMail(name+":2,", getFileSize(tS->mailDir+"/new/"+ent->d_name), tS->mailDir);
+				moveNewToCur(tS, name);
 			}
 		}
 	}
@@ -1163,23 +1189,23 @@ void executeMailServer(threadStruct *tS, int op, string received) {
 }
 
 
-void lockMaildir(threadStruct *tS) {
+bool lockMaildir(threadStruct *tS) {
 
 	if (mutexerino.try_lock()) {
 		if (!checkMailDir(tS->mailDir)) {
 			sendResponse(tS->commSocket, true, "mail directory not OK");
 			closeConnection(tS->commSocket);
+			return false;
 		}
 	} else {
 		sendResponse(tS->commSocket, true, "permission denied");
-		return;
+		return false;
 	}
 
 	createListFromMails(tS);
-	moveNewToCur(tS);
-
 
 	sendResponse(tS->commSocket, false, "user's maildrop has "+to_string(sumOfMails())+" messages ("+to_string(sumOfSizeMails())+" octets)");
+	return true;
 }
 
 /*
@@ -1257,9 +1283,7 @@ bool authorizeUser(int op, threadStruct *tS, char *receivedMessage, bool isHashe
 
 	}
 
-	lockMaildir(tS);
-
-	return true;
+	return lockMaildir(tS);
 }
 
 
@@ -1276,26 +1300,25 @@ void *clientThread(void *tS) {
 
 	threads.push_back(*tParam);
 
-
+	tParam->pidTimeStamp = generatePidTimeStamp();
 	clock_t clock1 = clock();
 	double timeout = 10;
 
 	sendResponse(tParam->commSocket, false, "POP3 server ready "+tParam->pidTimeStamp);
 	for (;;) {
 		if ((double) ((clock() - clock1) / CLOCKS_PER_SEC) <= timeout) {
-			cout << ((double) clock() - clock1 / CLOCKS_PER_SEC) << endl;
+			//cout << ((double) clock() - clock1 / CLOCKS_PER_SEC) << endl;
 			if (((int) recv(tParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
 				break;
 			} else {
 				clock1 = clock();
 				int op = 0;
 				if ((op = getOperation(receivedMessage)) != 0) {
-					bool isAuthorized;
 					clock1 = clock();
-					if (isAuthorized) {
+					if (tParam->authorized) {
 						executeMailServer(tParam, op, receivedMessage);
 					} else {
-						isAuthorized = authorizeUser(op, tParam, receivedMessage, tParam->isHashed);
+						tParam->authorized = authorizeUser(op, tParam, receivedMessage, tParam->isHashed);
 					}
 				} else {
 					sendResponse(tParam->commSocket, true, "invalid command");
@@ -1474,7 +1497,6 @@ int main(int argc, char *argv[]) {
 			tS->isHashed = isHashed;
 			tS->mailDir= mailDir;
 			tS->commSocket = commSocket;
-			tS->pidTimeStamp = generatePidTimeStamp();
 			pthread_create(&thread, nullptr, clientThread, tS);
 		} else {
 			break;
