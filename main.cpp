@@ -1282,7 +1282,6 @@ bool authorizeUser(int op, threadStruct *tS, char *receivedMessage, bool isHashe
 		}
 
 	}
-
 	return lockMaildir(tS);
 }
 
@@ -1358,7 +1357,6 @@ void resetMail() {
 		}
 	deleteFile(mailConfig);
 	}
-
 }
 
 
