@@ -79,15 +79,14 @@ void noopOperation(threadStruct *tS);
 void listIndexOperation(threadStruct *tS, unsigned int index);
 void retrOperation(threadStruct *tS, unsigned int index);
 void listOperation(threadStruct *tS);
-string hashForUidl(string dir, string mailName, size_t size);
+string hashForUidl(threadStruct *tS, string dir, string mailName);
 void uidlOperation(threadStruct *tS);
 void uidlIndexOperation(threadStruct *tS, unsigned int index);
-void deleteMarkedForDeletion(threadStruct *tS, int *errors);
+void deleteMarkedForDeletion(int *errors);
 void topIndexOperation(threadStruct *tS, unsigned int index, int rows);
-void closeThread(threadStruct *tS);
 void quitOperation(threadStruct *tS);
 size_t getFileSize(string file);
-void loadMailsFromCfg(threadStruct *tS);
+void loadMailsFromCfg();
 void createListFromMails(threadStruct *tS);
 bool validateRequest(string received, int operation);
 void executeMailServer(threadStruct *tS, int op, string received);
@@ -98,6 +97,7 @@ void resetMail();
 void createMailCfg();
 void closeThreads();
 void sigintHandler(int param);
+string getStringTime();
 
 /* Mail backend operations */
 void disposeList();
