@@ -59,11 +59,11 @@ void printHelp() {
 	cout << "\t./popser [-h] [-a PATH] [-c] [-p PORT] [-d PATH] [-r]" << endl;
 	cout << "Arguments:" << endl;
 	cout << "\t[-h]\t\tPrints the help and ends the program. Can be used with any other param, nevertheless, if this param is used, the program ends immediately after printing help." << endl;
-	cout << "\t[-c]\t\tSelects type of authentification of user. If the param is passed to the program, server accepts raw passwords, if the param is not passed, server accepts only hashed version. More in documentation." << endl;
+	cout << "\t[-c]\t\tSelects type of authorization of user. If the param is passed to the program, server accepts raw passwords, if the param is not passed, server accepts only hashed version. More in documentation." << endl;
 	cout << "\t[-r]\t\tIf the arguments is given, the server resets and returns all mails to the folders before the start initial start of the mail server." << endl;
 	cout << "\t[-a PATH]\tSpecifies the path to the auth file, which contains login information of single user. Must be used with -p and -d arguments. Arguments: -h, -c and -r are optional." << endl;
 	cout << "\t[-p PORT]\tSpecifies the port on which the server will run. Must be used with -a and -d arguments. Arguments: -h, -c and -r are optional." << endl;
-	cout << "\t[-d PATH]\tSpecifies the path to the Maildir, which must contain /cur, /new and /tmp folders. Also should contain all mails. Must be used with -p and -a arguments. Arguments: -h, -c and -r are optional." << endl;
+	cout << "\t[-d PATH]\tSpecifies the path to the mail directory, which must contain /cur, /new and /tmp folders. Also should contain all mails. Must be used with -p and -a arguments. Arguments: -h, -c and -r are optional." << endl;
 }
 
 
@@ -250,6 +250,15 @@ int getOperation(string message) {
 	}
 }
 
+/*
+ * Function returns current time passed since 1.1.1970 in seconds as a string
+ *
+ * @returns string time as string
+ */
+string getStringTime() {
+	time_t currTime = time(nullptr);
+	return to_string(currTime);
+}
 
 /*
  * Function generates a timestamp with hostname and pid in it
@@ -261,7 +270,6 @@ string generatePidTimeStamp() {
 	char hostname[512];
 	int pid = getpid();
 	struct hostent *host;
-	time_t currTime = time(nullptr);
 	
 	ostringstream pidNum;
 	pidNum << pid;
@@ -270,7 +278,7 @@ string generatePidTimeStamp() {
 	hostname[511] = '\0';
 	gethostname(hostname,512);
 	host = gethostbyname(hostname);
-	string pidTimeStamp = "<"+pidStr+"."+to_string(currTime)+"@"+host->h_name+">";
+	string pidTimeStamp = "<"+pidStr+"."+getStringTime()+"@"+host->h_name+">";
 	if (!isPidUnique(pidTimeStamp)) {
 		pidTimeStamp = generatePidTimeStamp();
 	}
@@ -287,7 +295,6 @@ string generatePidTimeStamp() {
 string getWorkingDirectory(char *argv[]) {
 	return returnSubstring(string(argv[0]), "popser", false);
 }
-
 
 
 /*
@@ -312,7 +319,7 @@ bool isPidUnique(string pidTimeStamp) {
  * Function sends response to the client with a +OK or -ERR prefix
  *
  * @param int socket defines where to send the message
- * @param bool error defines whether the error has occured or not (true ERROR, false ALRIGHT)
+ * @param bool error defines whether the error has occurred or not (true ERROR, false ALRIGHT)
  * @param string message message that will be sent to the client after the prefix
  */
 void sendResponse(int socket, bool error, string message) {
@@ -340,7 +347,7 @@ void sendMessage(int socket, string message) {
 
 
 /*
- * Simple function for checking usernames
+ * Simple function for checking user name
  *
  * @param string clientUser user received from client
  * @param string serverUser user on server
@@ -411,8 +418,6 @@ bool mailExists(string dir, string name) {
 bool deleteFile(string path) {
 	remove(path.c_str());
 	bool deleted = !ifstream(path.c_str());
-	cout << "Deleting file: " << path << endl;
-	cout << "Failed: "<< deleted << endl;
 	return deleted;
 }
 
@@ -815,7 +820,7 @@ void retrOperation(threadStruct *tS, unsigned int index) {
 
 
 /*
- * Function takes all e-mails, sums nondeleted and sums their size and sends it to the client, after that, the server sends size of every single messages one by one
+ * Function takes all e-mails, sums non-deleted and sums their size and sends it to the client, after that, the server sends size of every single messages one by one
  *
  * @param threadStruct *tS thread structure containing mail directory info and other useful information
  *
@@ -844,8 +849,8 @@ void listOperation(threadStruct *tS) {
  * @param string mailName name of the mail that is being hashed
  * @returns string unique md5 hash hash for any mail in the system
  */
-string hashForUidl(string dir, string mailName, size_t size) {
-	return md5(dir+"/cur/"+mailName+to_string(size));
+string hashForUidl(threadStruct *tS, string dir, string mailName) {
+	return md5(dir+"/cur/"+mailName+tS->pidTimeStamp);
 }
 
 
@@ -868,7 +873,7 @@ void uidlOperation(threadStruct *tS) {
 				copyName(index, &mailName);
 				copyDir(index, &dir);
 				copySize(index, &size);
-				sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(dir, mailName, size));
+				sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(tS, dir, mailName, size));
 			}
 			index++;
 		}
@@ -895,7 +900,7 @@ void uidlIndexOperation(threadStruct *tS, unsigned int index) {
 			copyName(index, &mailName);
 			copyDir(index, &dir);
 			copySize(index, &size);
-			sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(dir, mailName, size));
+			sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(tS, dir, mailName, size));
 		} else {
 			sendResponse(tS->commSocket, true, "mail does not exist");
 		}
@@ -903,7 +908,7 @@ void uidlIndexOperation(threadStruct *tS, unsigned int index) {
 }
 
 
-void deleteMarkedForDeletion(threadStruct *tS, int *errors) {
+void deleteMarkedForDeletion(int *errors) {
 	unsigned int i = 1;
 	while (i <= sumOfAllMails()) {
 		if (checkIfMarkedForDeletion(i)) {
@@ -953,7 +958,7 @@ void topIndexOperation(threadStruct *tS, unsigned int index, int rows) {
  */
 void quitOperation(threadStruct *tS) {
 	int errors = 0;
-	deleteMarkedForDeletion(tS, &errors);
+	deleteMarkedForDeletion(&errors);
 	if (errors) {
 		sendResponse(tS->commSocket, true, "some deleted messages not removed");
 	} else {
@@ -1000,7 +1005,7 @@ size_t getFileSize(string file) {
 
 
 
-void loadMailsFromCfg(threadStruct *tS) {
+void loadMailsFromCfg() {
 
 
 	string line;
@@ -1034,7 +1039,7 @@ void loadMailsFromCfg(threadStruct *tS) {
 void createListFromMails(threadStruct *tS) {
 
 
-	loadMailsFromCfg(tS);
+	loadMailsFromCfg();
 
 	string name = "";
 	DIR *dir;
@@ -1285,7 +1290,6 @@ void *clientThread(void *tS) {
 	sendResponse(tParam->commSocket, false, "POP3 server ready "+tParam->pidTimeStamp);
 	for (;;) {
 		if ((double) ((clock() - clock1) / CLOCKS_PER_SEC) <= timeout) {
-			//cout << ((double) clock() - clock1 / CLOCKS_PER_SEC) << endl;
 			if (((int) recv(tParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
 				break;
 			} else {
@@ -1304,7 +1308,6 @@ void *clientThread(void *tS) {
 			}
 		} else {
 			sendMessage(tParam->commSocket, "You have been logged out after "+to_string(timeout)+" seconds.");
-			closeThread(tParam);
 		}
 	}
 	return nullptr;
@@ -1342,7 +1345,7 @@ void resetMail() {
 /*
  * Function creates a mail config, that is saved in the same folder as the server, this function is fundamental for -reset param
  * Format of this config is following:
- * maildirdir = dir
+ * maildir = dir
  * name = name:2, (:2, is already in name); name = returnSubstring(name, ":2,", false)
  */
 void createMailCfg() {
@@ -1421,7 +1424,7 @@ int main(int argc, char *argv[]) {
 		exit(EXIT_SUCCESS);
 	}
 
-	// reset param wass passed? if yes, reset mail, if reset was the only param, end program
+	// reset param was passed? if yes, reset mail, if reset was the only param, end program
 	if (reset) {
 		resetMail();
 		if (argc == 2) {
@@ -1464,12 +1467,12 @@ int main(int argc, char *argv[]) {
 		throwException("ERROR: Could not start listening on port.\n");
 	}
 
-	socklen_t clientlen = sizeof(clientaddr);
+	socklen_t clientLength = sizeof(clientaddr);
 
 	// server started perfectly, now creating a cycle for server behaviour
 	while (true) {
 		int commSocket;
-		if ((commSocket = accept(serverSocket, (struct sockaddr *) &clientaddr, &clientlen)) > 0) {
+		if ((commSocket = accept(serverSocket, (struct sockaddr *) &clientaddr, &clientLength)) > 0) {
 			pthread_t thread;
 			auto *tS = new threadStruct;
 			tS->serverUser = serverUser;
