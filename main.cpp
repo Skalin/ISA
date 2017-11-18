@@ -17,7 +17,7 @@
 
 using namespace std;
 
-mutex mutexerino;
+mutex mutex1;
 
 
 string mailConfig = "./mail.cfg";
@@ -39,7 +39,7 @@ typedef struct {
 
 vector<threadStruct> threads;
 
-typedef struct mailStruct{
+struct mailStruct{
 	unsigned long id;
 	string name;
 	size_t size;
@@ -710,7 +710,7 @@ void sendMailWithHeader(threadStruct *tS, string name) {
 void closeConnection(int socket) {
 	sendResponse(socket, false, "bye");
 	close(socket);
-	mutexerino.unlock();
+	mutex1.unlock();
 }
 
 
@@ -1189,9 +1189,15 @@ void executeMailServer(threadStruct *tS, int op, string received) {
 }
 
 
+/*
+ * Function locks the mail directory for current user, if the mail directory is already used, it won't allow usage for another user
+ *
+ * @param threadStruct *tS thread structure containing mail directory info and other useful information
+ * @returns bool true if mail directory was locked, false if otherwise
+ */
 bool lockMaildir(threadStruct *tS) {
 
-	if (mutexerino.try_lock()) {
+	if (mutex1.try_lock()) {
 		if (!checkMailDir(tS->mailDir)) {
 			sendResponse(tS->commSocket, true, "mail directory not OK");
 			closeConnection(tS->commSocket);
@@ -1406,7 +1412,7 @@ void closeThreads() {
  *
  * @param int param not used
  */
-void siginthandler(int param) {
+void sigintHandler(int param) {
 	createMailCfg();
 	disposeList();
 	closeThreads();
@@ -1419,7 +1425,7 @@ void siginthandler(int param) {
  */
 int main(int argc, char *argv[]) {
 
-	signal(SIGINT, siginthandler);
+	signal(SIGINT, sigintHandler);
 
 	bool help = false;
 	bool reset = false;
@@ -1485,6 +1491,7 @@ int main(int argc, char *argv[]) {
 
 	socklen_t clientlen = sizeof(clientaddr);
 
+	// server started perfectly, now creating a cycle for server behaviour
 	while (true) {
 		int commSocket;
 		if ((commSocket = accept(serverSocket, (struct sockaddr *) &clientaddr, &clientlen)) > 0) {
