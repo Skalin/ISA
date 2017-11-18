@@ -873,7 +873,7 @@ void uidlOperation(threadStruct *tS) {
 				copyName(index, &mailName);
 				copyDir(index, &dir);
 				copySize(index, &size);
-				sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(tS, dir, mailName, size));
+				sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(tS, dir, mailName));
 			}
 			index++;
 		}
@@ -900,7 +900,7 @@ void uidlIndexOperation(threadStruct *tS, unsigned int index) {
 			copyName(index, &mailName);
 			copyDir(index, &dir);
 			copySize(index, &size);
-			sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(tS, dir, mailName, size));
+			sendResponse(tS->commSocket, false, to_string(index)+" "+hashForUidl(tS, dir, mailName));
 		} else {
 			sendResponse(tS->commSocket, true, "mail does not exist");
 		}
@@ -951,7 +951,7 @@ void topIndexOperation(threadStruct *tS, unsigned int index, int rows) {
 
 
 /*
- * Function moves client into update state of server, deletes all mails marked for deletion, if some were not successfull in deletion, the server responds with error, otherwise responds with counter of messages
+ * Function moves client into update state of server, deletes all mails marked for deletion, if some were not successful in deletion, the server responds with error, otherwise responds with counter of messages
  * it also closes connection to client, closing the thread is dependant on sigint handler, which closes all threads.
  *
  * @param threadStruct *tS thread structure containing mail directory info and other useful information
