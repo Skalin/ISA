@@ -317,6 +317,22 @@ string generatePidTimeStamp(){
 }
 
 
+/*
+ * Function returns the current working directory
+ *
+ * @returns string cwd current working directory
+ */
+string getWorkindDirectory() {
+
+	string wd;
+	char cwd[1024];
+	if (getcwd(cwd, sizeof(cwd)) != NULL) {
+		wd = string(cwd);
+	}
+	return wd;
+}
+
+
 
 /*
  * Function checks the uniqueness of pidTimeStamp, if the pidTimeStamp is not unique, it will generate new one and store it in correct thread
