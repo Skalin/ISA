@@ -18,10 +18,13 @@
 \usepackage{enumitem}
 \usepackage[bottom]{footmisc}
 \usepackage{lscape}
+\usepackage{listings}
 \usepackage{epsfig}
 \usepackage{url}
 \hypersetup{linkcolor=magenta}
 \renewcommand\thesection{\arabic{section}}
+\setcounter{tocdepth}{4}
+\setcounter{secnumdepth}{4}
 
 \newcommand\myuv[1]{\quotedblbase #1\textquotedblleft}
 \def\myauthor{Dominik Skála, xskala11@stud.fit.vutbr.cz}
@@ -30,96 +33,187 @@
 \def\mytitle{Síťové aplikace a správa sítí \\ Dokumentace projektu}
 
 \begin{document}
-\thispagestyle{empty}
-\begin{center}
-\Huge
-\textsc{Fakulta informačních technologií Vysoké učení technické v~Brně}
-
-\vspace{\stretch{0.382}}
+    \thispagestyle{empty}
     \begin{center}
-        \includegraphics[scale=0.2]{./images/vut/logo.png}
+        \Huge
+        \textsc{Fakulta informačních technologií Vysoké učení technické v~Brně}
+
+        \vspace{\stretch{0.382}}
+        \begin{center}
+            \includegraphics[scale=0.2]{./images/vut/logo.png}
+        \end{center}
+        \mytitle
+        \\
+        \vspace{\stretch{0.218}}
+        \LARGE POP3 server
+        \vspace{\stretch{0.4}}
     \end{center}
-\mytitle
-\\
-\vspace{\stretch{0.218}}
-\LARGE POP3 server
-\vspace{\stretch{0.4}}
-\end{center}
 
-{\Large
-\begin{flushleft}
-\myleader \hfill
-\myleadername
-\end{flushleft}
- \begin{flushright}
- \today \hfill
-\myauthor
-\end{flushright}}
+    {\Large
+    \begin{flushleft}
+        \myleader \hfill
+        \myleadername
+    \end{flushleft}
+    \begin{flushright}
+        \today \hfill
+        \myauthor
+    \end{flushright}}
 
-\clearpage
+    \clearpage
 
-\tableofcontents % prehled sekci
+    \tableofcontents % prehled sekci
 
-\clearpage
-\section{Zadání}
-Vytvořte komunikující aplikaci podle konkrétní vybrané specifikace pomocí síťové knihovny BSD sockets (pokud není ve variantě zadání uvedeno jinak). Projekt bude vypracován v jazyce C/C++. Pokud individuální zadání nespecifikuje vlastní referenční systém, musí být projekt přeložitelný a spustitelný na serveru merlin.fit.vutbr.cz.
-\subsection{Varianta POP3 server}
-Vytvorte program popser, ktorý bude plniť úlohu POP3 [1] serveru (ďalej iba server). Na server sa budú pripájať klienti, ktorý si pomocou protokolu POP3 sťahujú dáta zo serveru. Server bude pracovať s emailmi uloženými vo formáte IMF [4] v adresárovej štruktúre typu Maildir [2].
+    \clearpage
+    \section{Zadání}
+    Vytvořte komunikující aplikaci podle konkrétní vybrané specifikace pomocí síťové knihovny BSD sockets (pokud není ve variantě zadání uvedeno jinak). Projekt bude vypracován v jazyce C/C++. Pokud individuální zadání nespecifikuje vlastní referenční systém, musí být projekt přeložitelný a spustitelný na serveru merlin.fit.vutbr.cz.
+    \subsection{Varianta POP3 server}
+    Vytvorte program popser, ktorý bude plniť úlohu POP3 [1] serveru (ďalej iba server). Na server sa budú pripájať klienti, ktorý si pomocou protokolu POP3 sťahujú dáta zo serveru. Server bude pracovať s emailmi uloženými vo formáte IMF [4] v adresárovej štruktúre typu Maildir [2].
 
-Vašim cieľom je teda vytvoriť program, ktorý bude vedieť pracovať s emilami uloženými v adresárovej štruktúre Maildir. Program bude pracovať iba s jednou poštovou schránkou. Takto uložené emaily budú prostredníctvom protokolu POP3 poskytované jedinému používateľovi.
-\section{Uvedení do problematiky}
-\subsection{POP3 server}
-\subsubsection{Serverové stavy}
-\subsubsection{E-mailové operace}
-\subsubsection{Formy autorizace}
-\section{Řešení projektu}
-\subsection{Jazyk}
-Pro implementaci byl zadán jazyk C/C++. V projektu byl vybrán primárně jazyk C++, zejména pro jeho vylepšenou práci s paměti a prací s řetězci. Místy jsou však i využity operace a standardy, které by byly používány primárně v jazyce C.
-\subsection{Vývojové prostředí}
-Pro implementaci byl využit verzovací nástroj git, zejména tedy jeho populární provozovatel Github s využitím studentské licence.\par
-Pro vývoj v jazyce C/C++ byl využit nástroj CLion od firmy JetBrains s využitím studentské licence.
-\subsection{Popis řešení}
-\subsubsection{Přeložení a spuštění}
-POP3 server, dále jen server, je možné přeložit za pomocí makefile příkazem: make nebo make all. Příkaze make provede pouze znovupřeložení serveru, make all provede vyčištění adresáře od starých verzí serveru, překlad serveru a následné smazání objektových souborů.
-V případě potřeby je možné využít i příkazu: make clean-obj a make clean. Příkaz make clean provede smazání starých verzí serveru, make clean-obj provede smazání starých objektových souborů.\par
-Server se následně spouští příkazem: ./popser [-h] [-a PATH] [-c] [-p PORT] [-d PATH] [-r]\par
-Server, má tři formy běhu:
-\begin{enumerate}
-\item ./popser -h -- pouhý výpis nápovědy
-\item ./popser -r -- pouhé provedení resetu serveru do stavu před prvním spuštěním serveru
-\item ./popser -a PATH -p PORT -d PATH [-c] [-r] -- běžný režim běhu serveru
-\end{enumerate}
-\subsubsection{Popis argumentů při spuštění}
-Každý argument při spuštění má svůj význam a je nutné jej validovat. \par
+    Vašim cieľom je teda vytvoriť program, ktorý bude vedieť pracovať s emilami uloženými v adresárovej štruktúre Maildir. Program bude pracovať iba s jednou poštovou schránkou. Takto uložené emaily budú prostredníctvom protokolu POP3 poskytované jedinému používateľovi.
 
-\begin{description}
-\item [-h] je argument spouštějící nápovědu serveru. Je možné jej zadat s jakýmkoliv jiným argumentem, pokud je však zadán, dojde pouze k výpisu nápovědy a ukončení serveru. Tento argument je možné validně využít ve všech formách běhu serveru.
-V serveru je toto řešeno jako přepínač, který jakmile je aktivován, dojde k vytištění nápovědy a ukončení serveru s návratovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}).
-\item [-c] je argument, který umožňuje výběr typu autorizace v serveru. Pokud není zadán, je možné využít pouze autorizace přes příkazy APOP, pokud byl zadán, je možné využít pouze autorizace přes kombinaci příkazů USER/PASS. Tento argument je možné validně využít pouze v třetím režimu běhu.
-V serveru je toto řešeno jako přepínač, který jakmile je aktivován, rozhoduje povoluje jednu z těchto autorizačních metod.
-\item [-r] je argument provádějící reset serveru, tedy návrat do stavu před prvním spuštěním serveru, tj. dojde k načtení všech e-mailů ze speciálního konfiguračního souboru, v serveru je vždy pojmenován: mail.cfg a je umístěn v root složce serveru. Po provedení resetu se e-maily přesunou ze složky cur do new, změní se název na původní a server se tváří jako by nebyl spuštěn. Toto neplatí pro již smazané e-maily, ty nelze obnovit. Pokud je tento argument předán samostatně, dojde k resetu serveru a ukončení serveru s návratovou hodnotou \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}), pokud není zadán samostatně a je v kombinaci s třetí variantou spuštění, přejde se k dalšímu spouštění serveru. Tento argument je možné validně využít pouze v druhém a třetím režimu běhu.
-\item [-a PATH] je argumentem určujícím cestu k souboru s autorizačními údaji uživatele serveru. Tento argument je povinný v třetím režimu běhu. Pokud není v tomto režimu běhu zadán, dojde k ukončení běhu serveru s návratovým kódem \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}), pokud je zadán, dojde k načtení a validaci souboru s autorizačními údaji.
-\item [-d PATH] je argumentem určujícím cestu k e-mailovému adresáři. Tento argument je povinný v třetím režimu běhu. Pokud není v tomto režimu běhu zadán, dojde k ukončení běhu serveru s neúspěšným návratovým kódem \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}), pokud je zadán, je cesta uložena, ověřena validita cesty a až v pozdější fázi serveru jsou testovány bližší podmínky.
-\item [-p PORT] je argumentem určujícím číslo portu, na kterém server poběží. Tento argument je povinný v třetím režimu běhu. Pokud není v tomto režimu běhu zadán, dojde k ukončení běhu serveru s návratovým kódem \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}), pokud je zadán, číslo portu je uloženo a je s ním dále pracováno až při spouštění serveru.
-\end{description}
-\subsubsection{Běh serveru}
-Po spuštění serveru dojde podle režimu běhu k různému chování. \par
-Po spuštění serveru v režimu běhu 1 dojde k vytištění nápovědy a ukončení serveru s návratovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}).
-Po spuštění serveru v režimu běhu 2 dojde k resetu serveru a k ukončení programu s návratovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}), pokud nedošlo k žádným problémům a následně se smaže soubor mail.cfg.\par
-Po spuštění serveru v režimu běhu 3 dojde k validaci všech argumentů, následně dojde k validaci autorizačního souboru. Poté dojde k vytvoření socketu, jeho nastavení, k nabindování serverového socketu. Poté server přejde do stavu naslouchání na daném socketu. Pokud vše proběhlo v pořádku, server je spuštěn a čeká na připojení od klienta.\par
-Po připojení klienta se klient musí autorizovat, je tedy ve stavu autorizace. Dokud neproběhne úspěšná autorizace, nedostane klient přístup k e-mailům. Jakmile se autorizuje, je mu vyhrazen přístup k e-mailové složce nad kterou může výhradně on provádět e-mailové operace. V tomto momentě je v transakčním stavu. Po odpojení klienta dojde k přesunu do stavu aktualizace, ze kterého úspěšném dokončení přejde do stavu čekání na dalšího klienta. Server je schopen přijímat zároveň více klientů, výhradní přístup je však možné dát v jeden moment pouze jednomu klientovi.
-\subsection{Implementace řešení}
-\subsubsection{Návratové stavy}
-V serveru jsou využity dva návratové stavy. \textbf{EXIT\_SUCCESS} a \textbf{EXIT\_FAILURE}. Každý z těchto stavů je makrem pro číselnou hodnotu, bylo vhodně využito těchto maker pro transformovanost a přeložitelnost na různých systémech. Různé typy systémů mohou považovat různé návratové hodnoty za jiný stav. Využitím těchto maker tomuto lze jednoduše předejít.
-\begin{description}
-\item [EXIT\_SUCCESS] je brán jako hodnota úspěšného ukončení běhu programu. Standardně se na Unixových systémech jedná o číselnou hodnotu \textbf{0}.
-\label{itm:exitsuccess}
-\item [EXIT\_FAILURE] je brán jako hodnota neúspěšného ukončení běhu programu. Standardně se na Unixových systémech jedná o číselnou hodnotu \textbf{1}.
-\label{itm:exitfailure}
-\end{description}
-\subsubsection{Ukončení běhu serveru}
-\section{Základní informace o serveru}
-\section{Návod k použití}
-\bibliographystyle{plain}
-\bibliography{references}
+    \clearpage
+    \section{Uvedení do problematiky}
+    \subsection{POP3 server}
+    \label{subsec:pop3server}
+    \subsubsection{Serverové stavy}
+    \label{subsec:serverstatus}
+    \subsubsection{Serverové odpovědi}
+    \label{subsec:commresponse}
+    \subsubsection{E-mailové operace}
+    \label{subsec:mailoperations}
+    \subsubsection{Formy autorizace}
+    \label{subsec:authmethods}
+
+    \clearpage
+    \section{Řešení projektu}
+    \subsection{Jazyk}
+    Pro implementaci byl zadán jazyk C/C++. V projektu byl vybrán primárně jazyk C++, zejména pro jeho vylepšenou práci s paměti a prací s řetězci. Místy jsou však i využity operace a standardy, které by byly používány primárně v jazyce C.
+    \subsection{Vývojové prostředí}
+    Pro implementaci byl využit verzovací nástroj git, zejména tedy jeho populární provozovatel Github s využitím studentské licence.\par
+    Pro vývoj v jazyce C/C++ byl využit nástroj CLion od firmy JetBrains s využitím studentské licence.
+    \subsection{Popis řešení}
+    \subsubsection{Přeložení a spuštění}
+    \label{subsec:makeandrun}
+    POP3 server, dále jen server, je možné přeložit za pomocí makefile příkazem: make nebo make all. Příkaze make provede pouze znovupřeložení serveru, make all provede vyčištění adresáře od starých verzí serveru, překlad serveru a následné smazání objektových souborů.
+    V případě potřeby je možné využít i příkazu: make clean-obj a make clean. Příkaz make clean provede smazání starých verzí serveru, make clean-obj provede smazání starých objektových souborů.\par
+    Server se následně spouští příkazem: ./popser [-h] [-a PATH] [-c] [-p PORT] [-d PATH] [-r]\par
+    Server, má tři formy běhu:
+    \begin{enumerate}
+        \item ./popser -h -- pouhý výpis nápovědy
+        \item ./popser -r -- pouhé provedení resetu serveru do stavu před prvním spuštěním serveru
+        \item ./popser -a PATH -p PORT -d PATH [-c] [-r] -- běžný režim běhu serveru
+    \end{enumerate}
+    \subsubsection{Popis argumentů při spuštění}
+    Každý argument při spuštění má svůj význam a je nutné jej validovat. \par
+
+    \begin{description}
+        \item [-h] \label{itm:help} je argument spouštějící nápovědu serveru. Je možné jej zadat s jakýmkoliv jiným argumentem, pokud je však zadán, dojde pouze k výpisu nápovědy a ukončení serveru. Tento argument je možné validně využít ve všech formách běhu serveru.
+        V serveru je toto řešeno jako přepínač, který jakmile je aktivován, dojde k vytištění nápovědy a ukončení serveru s návratovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}).
+        \item [-c] \label{itm:authorisation}je argument, který umožňuje výběr typu autorizace v serveru. Pokud není zadán, je možné využít pouze autorizace přes příkazy APOP, pokud byl zadán, je možné využít pouze autorizace přes kombinaci příkazů USER/PASS. Tento argument je možné validně využít pouze v třetím režimu běhu.
+        V serveru je toto řešeno jako přepínač, který jakmile je aktivován, rozhoduje povoluje jednu z těchto autorizačních metod.
+        \item [-r] \label{itm:reset}je argument provádějící reset serveru, tedy návrat do stavu před prvním spuštěním serveru, tj. dojde k načtení všech e-mailů ze speciálního konfiguračního souboru, v serveru je vždy pojmenován: mail.cfg a je umístěn v root složce serveru. Po provedení resetu se e-maily přesunou ze složky cur do new, změní se název na původní a server se tváří jako by nebyl spuštěn. Toto neplatí pro již smazané e-maily, ty nelze obnovit. Pokud je tento argument předán samostatně, dojde k resetu serveru a ukončení serveru s návratovou hodnotou \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}), pokud není zadán samostatně a je v kombinaci s třetí variantou spuštění, přejde se k dalšímu spouštění serveru. Tento argument je možné validně využít pouze v druhém a třetím režimu běhu.
+        \item [-a PATH] je argumentem určujícím cestu k souboru s autorizačními údaji uživatele serveru. Tento argument je povinný v třetím režimu běhu. Pokud není v tomto režimu běhu zadán, dojde k ukončení běhu serveru s návratovým kódem \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}), pokud je zadán, dojde k načtení a validaci souboru s autorizačními údaji.
+        \item [-d PATH] je argumentem určujícím cestu k e-mailovému adresáři. Tento argument je povinný v třetím režimu běhu. Pokud není v tomto režimu běhu zadán, dojde k ukončení běhu serveru s neúspěšným návratovým kódem \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}), pokud je zadán, je cesta uložena, ověřena validita cesty a až v pozdější fázi serveru jsou testovány bližší podmínky.
+        \item [-p PORT] je argumentem určujícím číslo portu, na kterém server poběží. Tento argument je povinný v třetím režimu běhu. Pokud není v tomto režimu běhu zadán, dojde k ukončení běhu serveru s návratovým kódem \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}), pokud je zadán, číslo portu je uloženo a je s ním dále pracováno až při spouštění serveru.
+    \end{description}
+    \subsubsection{Běh serveru}
+    Po spuštění serveru dojde podle režimu běhu k různému chování.\\ \par
+    Po spuštění serveru v prvním režimu běhu dojde k vytištění nápovědy a ukončení serveru s návratovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}). \par
+    Po spuštění serveru v druhém režimu běhu dojde k resetu serveru a k ukončení programu s návratovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}), pokud nedošlo k žádným problémům a následně se smaže soubor mail.cfg.\par
+    Po spuštění serveru v třetím režimu běhu dojde k validaci všech argumentů, následně dojde k validaci autorizačního souboru. Poté dojde k vytvoření socketu, jeho nastavení, k nabindování serverového socketu. Poté server přejde do stavu naslouchání na daném socketu. Pokud vše proběhlo v pořádku, server je spuštěn a čeká na připojení od klienta. Blíže je toto sppecifikováno v sekci \ref{subsec:serverimplementation}\par
+    Po připojení klienta se klient musí autorizovat, je tedy ve stavu autorizace. Dokud neproběhne úspěšná autorizace, nedostane klient přístup k e-mailům. Jakmile se autorizuje, je mu vyhrazen přístup k e-mailové složce nad kterou může výhradně on provádět e-mailové operace. V tomto momentě je v transakčním stavu. Po odpojení klienta dojde k přesunu do stavu aktualizace, ze kterého úspěšném dokončení přejde do stavu čekání na dalšího klienta. Server je schopen přijímat zároveň více klientů, výhradní přístup je však možné dát v jeden moment pouze jednomu klientovi.
+
+    \clearpage
+    \subsection{Implementace řešení}
+    \subsubsection{Návratové stavy}
+    V serveru jsou využity dva návratové stavy. \textbf{EXIT\_SUCCESS} a \textbf{EXIT\_FAILURE}. Každý z těchto stavů je makrem pro číselnou hodnotu, bylo vhodně využito těchto maker pro transformovanost a přeložitelnost na různých systémech. Různé typy systémů mohou považovat různé návratové hodnoty za jiný stav. Využitím těchto maker tomuto lze jednoduše předejít.
+    \begin{description}
+        \item [EXIT\_SUCCESS] je brán jako hodnota úspěšného ukončení běhu programu. Standardně se na Unixových systémech jedná o číselnou hodnotu \textbf{0}.
+        \label{itm:exitsuccess}
+        \item [EXIT\_FAILURE] je brán jako hodnota neúspěšného ukončení běhu programu. Standardně se na Unixových systémech jedná o číselnou hodnotu \textbf{1}.
+        \label{itm:exitfailure}
+    \end{description}
+    \subsubsection{Konfigurační soubor}
+    \label{subsec:config}
+    Konfigurační soubor e-mailů obsahuje veškeré e-maily, které po ukončení serveru (\ref{subsec:sigint}) server uloží do souboru mail.cfg, který je vždy uložen ve stejné podsložce jako mailserver samotný, kde každému e-mailu jsou vytvořeny dva řádky v jednoduchém formátu:
+    \lstset{frameround=fttt}
+    \begin{lstlisting}[frame=trBL]
+        dir = PATH
+        name = NAME
+    \end{lstlisting}\par
+    Položka PATH je neúplná cesta k souboru, kterou má server uloženu v paměti ve speciální struktuře mailStruct (\ref{subsec:mailstruct}). Tyto e-maily jsou vždy uloženy ve složce e-mailového adresáře, v podsložce /cur, vždy je tedy uložena pouze cesta bez /cur. \par
+    Položka NAME je jméno e-mailu, které je taky uloženo v paměti ve speciální struktuře mailStruct (\ref{subsec:mailstruct}).\par
+    Tento soubor je po zapnutí server načten vždy, jsou z něj vždy načteny e-maily. Pokud dojde k resetu (\ref{subsec:reset}), provede se přesun e-mailů do daných souborů do původních složek, tedy do složky e-mailového adresáře, do podsložky /new
+    \subsubsection{Struktury a jejich kolekce}
+    \label{subsec:threadstruct}
+    Server využívá struktur dvou typů.\par
+    Jednou z nich je struktura typu threadStruct, která je strukturou vlákna, obsahující potřebné informace pro komunikaci s daným klientem v daném vlákně. Tato struktura je definována následovně:
+    \lstset{language=C++,frameround=fttt}
+    \begin{lstlisting}[frame=trBL]
+        typedef struct {
+        string mailDir = "";
+        string usersFile = "";
+        bool isHashed = true;
+        string clientUser = "";
+        string serverUser = "";
+        string clientPass = "";
+        string serverPass = "";
+        int commSocket = -1;
+        string pidTimeStamp = "";
+        bool authorized = false;
+        } threadStruct;
+    \end{lstlisting}
+    Struktura obsahuje:
+    \begin{description}
+        \item [string mailDir] kořenovou složku e-mailového adresáře
+        \item [string usersFile] cestu k souboru s autorizačními údaji klienta
+        \item [bool isHashed] formu autorizace
+        \item [string clientUser] jméno klienta, které obdrží po komunikaci s klientem
+        \item [string serverUser] jméno klienta, které bylo uloženo v souboru s autorizačními údaji, je zde pro urychlení práce s danými daty
+        \item [clientPass] heslo klienta, které obdrží po komunikaci s klientem
+        \item [serverPass] heslo klienta, které bylo uloženo v souboru s autorizačními údaji, je zde pro urychlení práce s danými daty
+        \item [int commSocket] komunikační socket, pro komunikaci s daným klientem, při inicializaci má hodnotu -1
+        \item [string pidTimeStamp] speciální nonce, která je po startu komunikace klienta se serverem zaslána klientovi
+        \item [bool authorized] stav autorizace klienta
+    \end{description}
+    \label{subsec:mailstruct}
+    Druhou strukturou, která je v serveru použita, je struktura e-mailu, její definice je následovná:
+    \lstset{language=C++,frameround=fttt}
+    \begin{lstlisting}[frame=trBL]
+        struct mailStruct{
+        unsigned long id;
+        string name;
+        size_t size;
+        string dir;
+        bool toDelete;
+        } *mailStructPtr;
+    \end{lstlisting}
+    Struktura obsahuje následující položky:
+    \begin{description}
+        \item [unsigned int id] id jednotlivých e-mailů
+        \item [string name] jméno e-mailu
+        \item [size\_t size] velikost daného e-mailu v oktetech \ref{subsec:mailsize}
+        \item [string dir] cesta ke kořenové složce e-mailového adresáře
+        \item [bool toDelete] příznak označující e-mail ke smazání
+    \end{description}
+    Jednotlivá vlákna jsou pro usnadnění práce s nimi uložena v jednom vektoru vláken s názvem threads. Vektorem můžeme označit dynamické pole umožňující rychlý a efektivní přístup k jednotlivým prvkům.\par
+    Jednotlivé e-maily jsou pro usnadnění práce s nimi uloženy v jednom globálním listu nazvaném mailList. List je provázaný seznam prvků umožňující nám snadnou iteraci skrze jednotlivé prvky.
+    \subsubsection{Implementace serveru}
+    \label{subsec:serverimplementation}
+    Server je implementován jako TCP server, který po spuštění provede kontrolu argumentů a jejich rozparsování za pomocí funkcí: \texttt{checkParams()} a \texttt{parseParams()}. Pokud nejsou správně zadány parametry odpovídající jednomu ze tří běhů aplikace (\ref{subsec:makeandrun}), dojde k ukončení programu s chybovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}), V opačném případě se pokračuje v běhu programu. Dojde ke kontrole parametrů \textsc{help} (\ref{itm:help}) a \textsc{reset} (\ref{itm:reset}). V dalším kroku se provede validace souboru s autorizačními údaji uživatele serveru (\ref{subsec:authconfig}). Pokud soubor není v pořádku, server vrací návratový kód \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}). Po úspěšné kontrole všech těchto parametrů se začne inicializovat server, nejprve se vytvoří \textsc{serverSocket} za pomocí funkce \texttt{socket()}, následně je tento socket nastaven funkcí \texttt{setsockopt()}. Pokud je vše v pořádku, server vytvoří \textsc{clientaddr} a \textsc{serveraddr} proměnné typu \textit{\textsc{sockaddr\_in}}, které se naplní vhodnými hodnotami, jako typ spojení a číslo portu. Poté je za pomocí funcke \texttt{bind()} socket nabindován a začne poslouchat na daném socketu s názvem \textsc{serverSocket}.
+    Pro chování TCP serveru je využit nekonečný \textsc{while} cyklus na jehož počátku dojde k přijetí packetů funkcí \texttt{accept()}, následně dojde k vytvoření
+    \subsubsection{Implementace logiky POP3}
+    \label{subsec:pop3implementation}
+    \subsubsection{Ukončení běhu serveru}
+    \label{subsec:sigint}
+    Ukončení běhu serveru je možné pouze v případě, že je serveru předán signál \textbf{SIGINT}. Takový signál je signál označený jako vyvolaný z klávesnice. Je to ukončující signál, jeho účelem je terminovat proces, potažmo server. Lze jej vyvolat z klávesnice stisknutím kláves: CTRL\^{}C. Při takovémto ukončení dojde k odpojení veškerých klientů, korektně se uloží veškeré informace o e-mailech do konfiguračního souboru  (\ref{subsec:config}) s e-maily, uvolní se veškerá struktury z paměti a server se ukončí s návratovým kódem \textbf{EXIT\_SUCCESS}. (\ref{itm:exitsuccess}).
+
+    \clearpage
+    \section{Základní informace o serveru}
+
+
+    \clearpage
+    \section{Návod k použití}
+    \bibliographystyle{plain}
+    \bibliography{references}
 \end{document}
