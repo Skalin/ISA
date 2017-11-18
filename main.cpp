@@ -1134,7 +1134,6 @@ void executeMailServer(threadStruct *tS, int op, string received) {
 				sendResponse(tS->commSocket, true, "already authorized");
 			} else if (op == 4) {
 				quitOperation(tS);
-				closeConnection(tS->commSocket);
 			} else if (op == 5) {
 				listOperation(tS);
 			} else if (op == 6) {
