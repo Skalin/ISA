@@ -279,8 +279,9 @@ string generatePidTimeStamp() {
 
 
 /*
- * Function returns the current working directory
+ * Function returns the directory in which is server located from argv[0]
  *
+ * @param char *argv[] array of arguments
  * @returns string cwd current working directory
  */
 string getWorkingDirectory(char *argv[]) {
