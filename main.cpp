@@ -20,8 +20,8 @@ using namespace std;
 mutex mutex1;
 
 
-string mailConfig = "./mail.cfg";
-string mailDir;
+string cwd;
+string mailConfig = "mail.cfg";
 
 
 typedef struct {
@@ -1057,7 +1057,7 @@ void loadMailsFromCfg(threadStruct *tS) {
 
 	string line;
 
-	ifstream config (mailConfig.c_str());
+	ifstream config ((cwd+"/"+mailConfig).c_str());
 	if (config.is_open()) {
 		int i = 0;
 		string dir;
@@ -1073,7 +1073,7 @@ void loadMailsFromCfg(threadStruct *tS) {
 			}
 			i++;
 		}
-		deleteFile(mailConfig);
+		deleteFile(cwd+"/"+mailConfig);
 	}
 }
 
@@ -1371,7 +1371,7 @@ void resetMail() {
 
 	string line;
 
-	ifstream config (mailConfig.c_str());
+	ifstream config ((cwd+"/"+mailConfig).c_str());
 	if (config.is_open()) {
 		int i = 0;
 		string dir;
@@ -1386,7 +1386,7 @@ void resetMail() {
 			}
 			i++;
 		}
-	deleteFile(mailConfig);
+	deleteFile(cwd+"/"+mailConfig);
 	}
 }
 
@@ -1402,7 +1402,7 @@ void createMailCfg() {
 	string name;
 	string dir;
 	ofstream file;
-	file.open(mailConfig);
+	file.open(cwd+"/"+mailConfig);
 
 	unsigned int i = 1;
 	while (i <= mailList.size()) {
@@ -1454,6 +1454,7 @@ int main(int argc, char *argv[]) {
 
 	bool help = false;
 	bool reset = false;
+	string mailDir;
 	string usersFile;
 	string serverUser;
 	string serverPass;
@@ -1465,6 +1466,7 @@ int main(int argc, char *argv[]) {
 		throwException("ERROR: Wrong arguments.");
 	}
 
+	cwd = getWorkindDirectory();
 	// help param was passed? if yes, then print help and end program
 	if (help) {
 		printHelp();
