@@ -1,22 +1,5 @@
-#include <iostream>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <mutex>
-#include <dirent.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <sstream>
-#include <fstream>
-#include <csignal>
-#include <vector>
-#include <list>
-#include <algorithm>
-#include "md5.h"
 #include "main.h"
-
-using namespace std;
+#include "md5.h"
 
 mutex mutex1;
 
@@ -274,7 +257,7 @@ int getOperation(string message) {
  *
  * @returns string pidTimeStamp in format <PID.time@hostname>
  */
-string generatePidTimeStamp(){
+string generatePidTimeStamp() {
 	char hostname[512];
 	int pid = getpid();
 	struct hostent *host;
@@ -288,7 +271,6 @@ string generatePidTimeStamp(){
 	gethostname(hostname,512);
 	host = gethostbyname(hostname);
 	string pidTimeStamp = "<"+pidStr+"."+to_string(currTime)+"@"+host->h_name+">";
-	int uniq = 0;
 	if (!isPidUnique(pidTimeStamp)) {
 		pidTimeStamp = generatePidTimeStamp();
 	}
@@ -301,14 +283,8 @@ string generatePidTimeStamp(){
  *
  * @returns string cwd current working directory
  */
-string getWorkindDirectory() {
-
-	string wd;
-	char cwd[1024];
-	if (getcwd(cwd, sizeof(cwd)) != NULL) {
-		wd = string(cwd);
-	}
-	return wd;
+string getWorkingDirectory(char *argv[]) {
+	return returnSubstring(string(argv[0]), "popser", false);
 }
 
 
@@ -319,11 +295,10 @@ string getWorkindDirectory() {
  * @param string PTS pidTimeStamp string
  * @returns true if pidTimeStamp is unique, false otherwise
  */
-bool isPidUnique(string PTS) {
+bool isPidUnique(string pidTimeStamp) {
 	bool status = true;
-	int counter = 1;
 	for(std::vector<threadStruct>::iterator it = threads.begin(); it != threads.end(); ++it) {
-		if (it->pidTimeStamp == PTS) {
+		if (it->pidTimeStamp == pidTimeStamp) {
 			it->pidTimeStamp = generatePidTimeStamp();
 			status = false;
 		}
@@ -433,7 +408,11 @@ bool mailExists(string dir, string name) {
  * @param string path full path of the email containing also its name
  */
 bool deleteFile(string path) {
-	return remove(path.c_str());
+	remove(path.c_str());
+	bool deleted = !ifstream(path.c_str());
+	cout << "Deleting file: " << path << endl;
+	cout << "Failed: "<< deleted << endl;
+	return deleted;
 }
 
 
@@ -752,7 +731,7 @@ void rsetOperation(threadStruct *tS) {
  */
 void deleOperation(threadStruct *tS, unsigned int index) {
 	if (!checkIndexOfMail(index)) {
-		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfAllMails())+" messages in maildrop)");
+		sendResponse(tS->commSocket, true, "no such message (only "+to_string(sumOfMails())+" messages in maildrop)");
 	} else {
 		if (checkIfMarkedForDeletion(index)) {
 			sendResponse(tS->commSocket, true, "mail already marked for deletion");
@@ -924,8 +903,8 @@ void uidlIndexOperation(threadStruct *tS, unsigned int index) {
 
 
 void deleteMarkedForDeletion(threadStruct *tS, int *errors) {
-	unsigned int i = 0;
-	while (i <= sumOfMails()) {
+	unsigned int i = 1;
+	while (i <= sumOfAllMails()) {
 		if (checkIfMarkedForDeletion(i)) {
 			string dir;
 			string name;
@@ -966,20 +945,10 @@ void topIndexOperation(threadStruct *tS, unsigned int index, int rows) {
 
 
 /*
- * TODO i should close current thread there and remove it from vector
- */
-void closeThread(threadStruct *tS) {
-	int i = 0;
-	for(std::vector<threadStruct>::iterator it = threads.begin(); it != threads.end(); ++it) {
-		if (it->commSocket == tS->commSocket) {
-
-		}
-		i++;
-	}
-}
-
-/*
- * TODO dont know how to close single thread and delete it from vector...
+ * Function moves client into update state of server, deletes all mails marked for deletion, if some were not successfull in deletion, the server responds with error, otherwise responds with counter of messages
+ * it also closes connection to client, closing the thread is dependant on sigint handler, which closes all threads.
+ *
+ * @param threadStruct *tS thread structure containing mail directory info and other useful information
  */
 void quitOperation(threadStruct *tS) {
 	int errors = 0;
@@ -995,7 +964,6 @@ void quitOperation(threadStruct *tS) {
 
 	}
 	closeConnection(tS->commSocket);
-	closeThread(tS);
 }
 
 
@@ -1445,7 +1413,7 @@ int main(int argc, char *argv[]) {
 		throwException("ERROR: Wrong arguments.");
 	}
 
-	cwd = getWorkindDirectory();
+	cwd = getWorkingDirectory(argv);
 	// help param was passed? if yes, then print help and end program
 	if (help) {
 		printHelp();
