@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.7)
-project(ISA)
+project(POP3)
 
 set(CMAKE_CXX_STANDARD 11)
 
-set(SOURCE_FILES main.cpp lib/md5/md5.h lib/md5/md5.cpp)
-add_executable(ISA ${SOURCE_FILES})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -pthread")
+
+set(SOURCE_FILES main.cpp)
+add_executable(POP3 ${SOURCE_FILES})

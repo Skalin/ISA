@@ -13,7 +13,8 @@
 #include <vector>
 #include <list>
 #include <algorithm>
-#include "md5.cpp"
+#include "md5.h"
+#include "main.h"
 
 using namespace std;
 
@@ -23,29 +24,7 @@ mutex mutex1;
 string cwd;
 string mailConfig = "mail.cfg";
 
-
-typedef struct {
-	string mailDir = "";
-	string usersFile = "";
-	bool isHashed = true;
-	string clientUser = "";
-	string serverUser = "";
-	string clientPass = "";
-	string serverPass = "";
-	int commSocket = -1;
-	string pidTimeStamp = "";
-	bool authorized = false;
-} threadStruct;
-
 vector<threadStruct> threads;
-
-struct mailStruct{
-	unsigned long id;
-	string name;
-	size_t size;
-	string dir;
-	bool toDelete;
-} *mailStructPtr;
 
 list <mailStruct> mailList;
 
