@@ -289,17 +289,6 @@ int getOperation(string message) {
 }
 
 
-int isPidUnique(string PTS) {
-	int i = 0;
-	for(std::vector<threadStruct>::iterator it = threads.begin(); it != threads.end(); ++it) {
-		if (it->pidTimeStamp == PTS) {
-			i++;
-		}
-	}
-	return i;
-}
-
-
 /*
  * Function generates a timestamp with hostname and pid in it
  * Time in this function is a amount of seconds that passed since 1.1.1970, pid is a current process id, hostname is hostname of the server
@@ -321,10 +310,30 @@ string generatePidTimeStamp(){
 	host = gethostbyname(hostname);
 	string pidTimeStamp = "<"+pidStr+"."+to_string(currTime)+"@"+host->h_name+">";
 	int uniq = 0;
-	if ((uniq = isPidUnique(pidTimeStamp)) > 0) {
-		pidTimeStamp = returnSubstring(pidTimeStamp, "@", false)+to_string(uniq)+returnSubstring(pidTimeStamp, "@", true);
+	if (!isPidUnique(pidTimeStamp)) {
+		pidTimeStamp = generatePidTimeStamp();
 	}
 	return (pidTimeStamp);
+}
+
+
+
+/*
+ * Function checks the uniqueness of pidTimeStamp, if the pidTimeStamp is not unique, it will generate new one and store it in correct thread
+ *
+ * @param string PTS pidTimeStamp string
+ * @returns true if pidTimeStamp is unique, false otherwise
+ */
+bool isPidUnique(string PTS) {
+	bool status = true;
+	int counter = 1;
+	for(std::vector<threadStruct>::iterator it = threads.begin(); it != threads.end(); ++it) {
+		if (it->pidTimeStamp == PTS) {
+			it->pidTimeStamp = generatePidTimeStamp();
+			status = false;
+		}
+	}
+	return status;
 }
 
 
