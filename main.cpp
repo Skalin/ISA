@@ -908,6 +908,12 @@ void uidlIndexOperation(threadStruct *tS, unsigned int index) {
 }
 
 
+/*
+ * Function is called after quit operation from transaction status of server, deletes all mails that the client marked for deletion, returns amount of errors that occured during deletion in pointer to int *errors
+ *
+ * @param int *errors amount of errors that happened during removing of mails
+ *
+ */
 void deleteMarkedForDeletion(int *errors) {
 	unsigned int i = 1;
 	while (i <= sumOfAllMails()) {
@@ -955,6 +961,7 @@ void topIndexOperation(threadStruct *tS, unsigned int index, int rows) {
  * it also closes connection to client, closing the thread is dependant on sigint handler, which closes all threads.
  *
  * @param threadStruct *tS thread structure containing mail directory info and other useful information
+ *
  */
 void quitOperation(threadStruct *tS) {
 	int errors = 0;
@@ -967,7 +974,6 @@ void quitOperation(threadStruct *tS) {
 		} else {
 			sendResponse(tS->commSocket, false, tS->serverUser+" POP3 server signing off, "+to_string(sumOfMails())+" message left");
 		}
-
 	}
 	closeConnection(tS->commSocket);
 }
@@ -1005,6 +1011,10 @@ size_t getFileSize(string file) {
 
 
 
+/*
+ * Function loads mails from mail config and saves them into list of mails, after the file is loaded, the server deletes the old config
+ *
+ */
 void loadMailsFromCfg() {
 
 
@@ -1029,6 +1039,7 @@ void loadMailsFromCfg() {
 		deleteFile(cwd+"/"+mailConfig);
 	}
 }
+
 
 /*
  * Function gets all emails from mail directory and fills them into the global list of mails
@@ -1239,7 +1250,7 @@ bool authorizeUser(int op, threadStruct *tS, char *receivedMessage, bool isHashe
 				return false;
 			}
 		} else if (op == 4) {
-			closeConnection(tS->commSocket);
+			quitOperation(tS);
 			return false;
 		} else {
 			sendResponse(tS->commSocket, true, "invalid command");
@@ -1257,7 +1268,7 @@ bool authorizeUser(int op, threadStruct *tS, char *receivedMessage, bool isHashe
 				return false;
 			}
 		} else if (op == 4) {
-			closeConnection(tS->commSocket);
+			quitOperation(tS);
 			return false;
 		} else {
 			sendResponse(tS->commSocket, true, "invalid command");
