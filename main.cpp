@@ -1295,7 +1295,7 @@ void *clientThread(void *tS) {
 
 	tParam->pidTimeStamp = generatePidTimeStamp();
 	clock_t clock1 = clock();
-	double timeout = 10;
+	double timeout = 6000.00;
 
 	sendResponse(tParam->commSocket, false, "POP3 server ready "+tParam->pidTimeStamp);
 	for (;;) {
