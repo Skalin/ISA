@@ -94,27 +94,32 @@
         \item[+OK] Příkaz přijatý serverem byl bez problému zpracován a je zasílána kladné odpověď
         \item[-ERR] Příkaz přijatý serverem byl s nějakou chybou zpracován špatně.
     \end{description}
-
     \subsubsection{Nonce}
     \label{subsec:nonce}
     Server po připojení klienta vygeneruje speciální nonci, která je zaslána klientovi jako součást uvítací zprávy.
-    Samotná nonce je ve tvaru: <process-ID.clock@hostname>, kde process-ID je id systémového procesu. Hodnota clock je čas, který uběhl od 1.1.1970 v sekundách. Hostname je hostname zařízení na kterém server běží.
+    Samotná nonce je ve tvaru: <process-ID.clock@hostname>, kde:
+    \begin{description}
+        \item [process-ID] je id systémového procesu
+        \item [clock] je čas, který uběhl od 1.1.1970 v sekundách
+        \item [hostname] je hostname zařízení na kterém server běží
+    \end{description}
     \subsubsection{E-mailové operace}
     \label{subsec:mailoperations}
-    Server rozumí následujícím příkazům: APOP, USER, PASS, NOOP, QUIT, STAT, LIST, RETR, DELE, RSET, UIDL a TOP. Jejich chování je předem definované \cite{P3Server}, Pokud jsou veškeré příkazy zpracovány správně, server reaguje kladnou odpovědi (\ref{subsec:commresponse}), pokud došlo při zpracovávání k chybě, vrací zápornou odpověď. Následuje vysvětlení jednotlivých příkazů:
+    Server rozumí následujícím příkazům: APOP, USER, PASS, NOOP, QUIT, STAT, LIST, RETR, DELE, RSET, UIDL a TOP. Jejich chování je předem definované \cite{P3Server}, Pokud jsou veškeré příkazy zpracovány správně, server reaguje kladnou odpovědi (\ref{subsec:commresponse}), pokud došlo při zpracovávání k chybě, vrací zápornou odpověď. Následuje vysvětlení jednotlivých příkazů, za pomlčkou je jejich ukázkové použití.
+    Pokud je parametr v hranatých závorkách, je parametr nepovinný a příkaz má tedy dvě varianty.
     \begin{description}
-        \item[APOP] Příkaz je serverem zpracován, může být použit pouze v autorizačním stavu za předpokladu, že není aktivní jiná forma autorizace, než APOP (\ref{subsec:authmethods}). Tento příkaz má vždy dva argumenty, uživatelské jméno a hashované heslo. Server na začátku komunikace pošle uvítací zprávu, která obsahuje speciální nonci, kterou klient použije, konkatenuje k ní heslo. Celý tento obsah hashuje přes md5 algoritmus a následně pošle serveru zpět jako heslo. Pokud hash sedí, klient je autorizován.
-        \item[USER] Příkaz je serverem zpracován, může být použit pouze v autorizačním stavu za předpokladu, že není aktivní jiná forma autorizace, než USER/PASS (\ref{subsec:authmethods}). Existuje pouze jediný argument, tím je uživatelské jméno. Server zkontroluje validitu uživatele, poté čeká na ověření hesla příkazem PASS. Server provádí kontrolu jména z argumentu vůči souboru s autorizačními údaji (\ref{subsec:authconfig}).
-        \item[PASS] Příkaz je serverem zpracován, může být použit pouze v autorizačním stavu za předpokladu, že není aktivní jiná forma autorizace, než USER/PASS (\ref{subsec:authmethods}). Existuje pouze jediný argukent, tím je uživatelské heslo. Příkaz může být použit pouze po kladné odpovědi z příkazu USER. Server provádí kontrolu hesla z argumentu vůči souboru s autorizačními údaji (\ref{subsec:authconfig}).
-        \item[NOOP] Příkaz je serverem zpracován,neobsahuje žádný argument. Může být použit pouze v transakčním stavu, reálně však pouze vrací kladnou odpověď, neprovádí žádné operace ani úpravy.
-        \item[QUIT] Příkaz je serverem zpracován dvěma různými možnostmi a může být použit pouze v transakčním nebo autorizačním stavu, Neobsahuje žádný argument. Pokud je QUIT příkaz použit ve stavu Autorizace (\ref{subsec:serverstatus}), dojde k odpojení klienta a návratu do stavu čekání na klienta. Pokud je příkaz QUIT použit ve stavu Transakce, musí server přejít do stavu Aktualizace, ve kterém provede smazání všech e-mailů, které byly označení ke smazání a odpojí klienta, případně uvolní veškeré alokované prostředky související s daným klientem.
-        \item[STAT] Příkaz je serverem zpracován může být použit pouze v transakčním stavu, server vrací počet zpráv, které nebyly označeny ke smazání a sumu (\ref{subsec:mailsize}) velikostí těchto e-mailů. Příkaz neobsahuje žádný argument.
-        \item[LIST] Příkaz je serverem zpracován dvěma různými možnostmi a může být použit pouze v transakčním stavu,. Pokud je u operace zadán nenulový a kladný číselný argument a pokud není. Pokud byl zadán, server vyhledá zprávu, pokud ji nalezl, zkontroluje zda nebyla označena ke smazání. Pokud nebyla, vrátí index \cite{index} zprávy a její velikost (\ref{subsec:mailsize}). Pokud nebyl zadán žádný argument, server zašle postupně jednotlivé indexy zpráv s jejich velikostmi. Po kompletním odeslání všech zpráv zašle ukončovací zprávu ve formátu: ".".
-        \item[RETR] Příkaz je serverem zpracován, může být použit pouze v transakčním stavu. Vždy musí obsahovat jeden nenulový, kladný, číselný argument. Dle tohoto argumentu vyhledá zprávu, kterou je nutné zaslat, zkontroluje zda nebyla označena ke smazání. Pokud nebyla označena ke smazání, zašle server index zprávy, její velikost. K tomu pošle obsah e-mailu i s jeho hlavičkou a ukončovací zprávu: ".".
-        \item[DELE] Příkaz je serverem zpracován, vždy musí obsahovat jeden nenulový, kladný, číselný argument, na základě kterého vyhledá index zprávy. Pokud již zpráva není označena ke smazání, dojde k označení zprávy ke smazání. Zpráva stále zůstává v e-mailovém adresáři dokud server nepřejde to stavu Aktualizace (\ref{subsec:serverstatus}).
-        \item[RSET] Příkaz je serverem zpracován, neobsahuje žádný argument. Může být použit pouze v transakčním stavu. Po jeho použití dojde k odznačení všech e-mailů, které byly označeny ke smazání. Nebudou tedy smazány.
-        \item[UIDL] Příkaz je serverem zpracován dvěma různými možnostmi a může být použit pouze v transakčním stavu,. Pokud je u operace zadán nenulový a kladný číselný argument a pokud není. Pokud byl zadán, server vyhledá zprávu, pokud ji nalezl, zkontroluje zda nebyla označena ke smazání. Pokud nebyla, vrátí index \cite{index} zprávy a její unikátní hash, který je tvořen z celé složky k e-mailovému adresáři, podsložky "/cur/", názvu e-mailu a speciální nonce, která je tvořena po připojení klienta k serveru. Pokud nebyl zadán argument, dojde k odeslání počtu zpráv, následně se zašle id každá zprávy a unikátní hash pro každou z nich, po všech zprávách se zašle ukončovací zpráva ".".
-        \item[TOP] Příkaz je serverem zpracován, může být použit pouze v transakčním stavu. Vždy musí obsahovat dva nenulové, kladné, číselné argumenty. První argument určuje index zprávy, druhý určuje počet řádků, které se ze zprávy zašlou. Dle indexu je zpráva vyhledána, zkontrolována, zda není označena ke smazání a je zaslána hlavička a tolik řádků ze samotné zprávy, kolik bylo vyžádáno v druhém argumentu.
+        \item[APOP - \texttt{APOP username nonce}] Příkaz je serverem zpracován, může být použit pouze v autorizačním stavu za předpokladu, že není aktivní jiná forma autorizace, než APOP (\ref{subsec:authmethods}). Tento příkaz má vždy dva argumenty, uživatelské jméno a hashované heslo. Server na začátku komunikace pošle uvítací zprávu, která obsahuje speciální nonci, kterou klient použije, konkatenuje k ní heslo. Celý tento obsah hashuje přes md5 algoritmus a následně pošle serveru zpět jako heslo. Pokud hash sedí, klient je autorizován.
+        \item[USER - \texttt{USER username}] Příkaz je serverem zpracován, může být použit pouze v autorizačním stavu za předpokladu, že není aktivní jiná forma autorizace, než USER/PASS (\ref{subsec:authmethods}). Existuje pouze jediný argument, tím je uživatelské jméno. Server zkontroluje validitu uživatele, poté čeká na ověření hesla příkazem PASS. Server provádí kontrolu jména z argumentu vůči souboru s autorizačními údaji (\ref{subsec:authconfig}).
+        \item[PASS - \texttt{PASS password}] Příkaz je serverem zpracován, může být použit pouze v autorizačním stavu za předpokladu, že není aktivní jiná forma autorizace, než USER/PASS (\ref{subsec:authmethods}). Existuje pouze jediný argukent, tím je uživatelské heslo. Příkaz může být použit pouze po kladné odpovědi z příkazu USER. Server provádí kontrolu hesla z argumentu vůči souboru s autorizačními údaji (\ref{subsec:authconfig}).
+        \item[NOOP - \texttt{NOOP}] Příkaz je serverem zpracován,neobsahuje žádný argument. Může být použit pouze v transakčním stavu, reálně však pouze vrací kladnou odpověď, neprovádí žádné operace ani úpravy.
+        \item[QUIT - \texttt{QUIT}] Příkaz je serverem zpracován dvěma různými možnostmi a může být použit pouze v transakčním nebo autorizačním stavu, Neobsahuje žádný argument. Pokud je QUIT příkaz použit ve stavu Autorizace (\ref{subsec:serverstatus}), dojde k odpojení klienta a návratu do stavu čekání na klienta. Pokud je příkaz QUIT použit ve stavu Transakce, musí server přejít do stavu Aktualizace, ve kterém provede smazání všech e-mailů, které byly označení ke smazání a odpojí klienta, případně uvolní veškeré alokované prostředky související s daným klientem.
+        \item[STAT - \texttt{STAT}] Příkaz je serverem zpracován může být použit pouze v transakčním stavu, server vrací počet zpráv, které nebyly označeny ke smazání a sumu (\ref{subsec:mailsize}) velikostí těchto e-mailů. Příkaz neobsahuje žádný argument.
+        \item[LIST - \texttt{LIST $[$id$]$}] Příkaz je serverem zpracován dvěma různými možnostmi a může být použit pouze v transakčním stavu,. Pokud je u operace zadán nenulový a kladný číselný argument a pokud není. Pokud byl zadán, server vyhledá zprávu, pokud ji nalezl, zkontroluje zda nebyla označena ke smazání. Pokud nebyla, vrátí index \cite{index} zprávy a její velikost (\ref{subsec:mailsize}). Pokud nebyl zadán žádný argument, server zašle postupně jednotlivé indexy zpráv s jejich velikostmi. Po kompletním odeslání všech zpráv zašle ukončovací zprávu: ".".
+        \item[RETR - \texttt{RETR id}] Příkaz je serverem zpracován, může být použit pouze v transakčním stavu. Vždy musí obsahovat jeden nenulový, kladný, číselný argument. Dle tohoto argumentu vyhledá zprávu, kterou je nutné zaslat, zkontroluje zda nebyla označena ke smazání. Pokud nebyla označena ke smazání, zašle server index zprávy, její velikost. K tomu pošle obsah e-mailu i s jeho hlavičkou a ukončovací zprávu: ".".
+        \item[DELE - \texttt{DELE id}] Příkaz je serverem zpracován, vždy musí obsahovat jeden nenulový, kladný, číselný argument, na základě kterého vyhledá index zprávy. Pokud již zpráva není označena ke smazání, dojde k označení zprávy ke smazání. Zpráva stále zůstává v e-mailovém adresáři dokud server nepřejde to stavu Aktualizace (\ref{subsec:serverstatus}).
+        \item[RSET - \texttt{RSET}] Příkaz je serverem zpracován, neobsahuje žádný argument. Může být použit pouze v transakčním stavu. Po jeho použití dojde k odznačení všech e-mailů, které byly označeny ke smazání. Nebudou tedy smazány.
+        \item[UIDL - \texttt{UIDL $[$id$]$}] Příkaz je serverem zpracován dvěma různými možnostmi a může být použit pouze v transakčním stavu,. Pokud je u operace zadán nenulový a kladný číselný argument a pokud není. Pokud byl zadán, server vyhledá zprávu, pokud ji nalezl, zkontroluje zda nebyla označena ke smazání. Pokud nebyla, vrátí index \cite{index} zprávy a její unikátní hash, který je tvořen z celé složky k e-mailovému adresáři, podsložky "/cur/", názvu e-mailu a speciální nonce, která je tvořena po připojení klienta k serveru. Pokud nebyl zadán argument, dojde k odeslání počtu zpráv, následně se zašle id každá zprávy a unikátní hash pro každou z nich, po všech zprávách se zašle ukončovací zpráva ".".
+        \item[TOP - \texttt{TOP id n}] Příkaz je serverem zpracován, může být použit pouze v transakčním stavu. Vždy musí obsahovat dva nenulové, kladné, číselné argumenty. První argument určuje index zprávy, druhý určuje počet řádků, které se ze zprávy zašlou. Dle indexu je zpráva vyhledána, zkontrolována, zda není označena ke smazání a je zaslána hlavička a tolik řádků ze samotné zprávy, kolik bylo vyžádáno v druhém argumentu.
     \end{description}
     \subsubsection{Formy autorizace}
     \label{subsec:authmethods}
@@ -142,8 +147,35 @@
     \label{subsec:mails}
     \subsubsection{Formát zpráv}
     \label{subsec:mailformat}
+    Všechny e-mailové zprávy odpovídají specifikaci IMF \cite{IMF}, každý e-mail má hlavičku a tělo. Hlavička je od těla zprávy oddělena prázdným řádkem, tedy "\textbackslash r\textbackslash n\textbackslash r\textbackslash n". Ukázkový e-mail tedy může vypadat nějak takto:
+
+    \lstset{frameround=fttt}
+    \begin{lstlisting}[frame=trBL]
+        Return-Path: <root@localhost>
+        X-Original-To: isa2015@localhost
+        Delivered-To: isa2015@localhost
+        Received: from localhost (localhost [127.0.0.1])
+        by isa2015 (Postfix) with ESMTP id 3FBBC260CB
+        for <isa2015@localhost>; Sun, 22 Oct 2017 16:28:25 +0200 (CEST)
+        Subject: Email cislo 1
+        Message-Id: <20171022142834.3FBBC260CB@isa2015>
+        Date: Sun, 22 Oct 2017 16:28:25 +0200 (CEST)
+        From: root@localhost
+
+        Ahoj,
+
+        diky za zpravu, vsechno jsem vyridil, o cil bylo postarano.
+
+        Cus,
+
+        JB
+        007
+    \end{lstlisting}
+
     \subsubsection{Velikost zpráv}
     \label{subsec:mailsize}
+    Velikost zprávy je počítána v oktetech, což je velikost odpovídající v bytech. Každý e-mail by však měl obsahovat v ideálním případě konce řádků ve formátu: "\textbackslash r\textbackslash n" (označujeme jako CRLF, kde CR je "\textbackslash r" a LF je "\textbackslash n"), pokud tomu tak není, je nutné, aby server dopočítal správnou velikost dle nekorektních zakončení řádků. Dle specifikace je dáno, že řádky musí končit výše zmíněnou posloupností. Délka se tak poté může lišit v závislosti na systému.
+    Windows systémy CRLF zasílají, Unix systémy však využívají pouze LF, tedy pouze: "\textbackslash n", naopak oproti tomu, Macintosh systémy a Commodore využívají CR, tedy pouze: "\textbackslash r".
 
     \clearpage
     \section{Řešení projektu}
