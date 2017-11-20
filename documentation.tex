@@ -67,37 +67,83 @@
     \section{Zadání}
     Vytvořte komunikující aplikaci podle konkrétní vybrané specifikace pomocí síťové knihovny BSD sockets (pokud není ve variantě zadání uvedeno jinak). Projekt bude vypracován v jazyce C/C++. Pokud individuální zadání nespecifikuje vlastní referenční systém, musí být projekt přeložitelný a spustitelný na serveru merlin.fit.vutbr.cz.
     \subsection{Varianta POP3 server}
-    Vytvorte program popser, ktorý bude plniť úlohu POP3 [1] serveru (ďalej iba server). Na server sa budú pripájať klienti, ktorý si pomocou protokolu POP3 sťahujú dáta zo serveru. Server bude pracovať s emailmi uloženými vo formáte IMF [4] v adresárovej štruktúre typu Maildir [2].
+    Vytvořte program popser, který bude plnit úlohu POP3 \cite{P3Server} (dále pouze server). Na server se budou připojovat klienti, kteři si pomocí protokolu POP3 stahují data ze serveru. Server bude pracovat s e-maily uloženými ve formátu IMF \cite{IMF} v adresářové struktuře typu Maildir \cite{MAILDIR}.
 
-    Vašim cieľom je teda vytvoriť program, ktorý bude vedieť pracovať s emilami uloženými v adresárovej štruktúre Maildir. Program bude pracovať iba s jednou poštovou schránkou. Takto uložené emaily budú prostredníctvom protokolu POP3 poskytované jedinému používateľovi.
+    Vašim cílem je tedy vytvořit program, který zvládne pracovat s e-maily uloženými v adresářové struktuře Maildir. Program bude pracovat pouze s jednou poštovní schránkou. Takto uložené e-maily budou prostřednictvím protokolu POP3 poskytované jedinému uživateli.
 
     \clearpage
     \section{Uvedení do problematiky}
     \subsection{POP3 server}
     \label{subsec:pop3server}
     \subsubsection{Serverové stavy}
-    Server dosahuje 3 (respektive 4) stavů, mezi kterými postupně iteruje. Server dosahuje stavu: Čekání na připojení, Autorizace, Transakce, Aktualizace.
+    \label{subsec:serverstatus}
+    Server dosahuje 4 stavů, mezi kterými postupně iteruje. Server dosahuje stavů: Čekání na připojení, Autorizace, Transakce, Aktualizace.
     \begin{center}
         \includegraphics[scale=0.8]{./images/popfsm.png}
     \end{center}
     \begin{description}
-        \item [Čekání na připojení]
-        \item [Autorizace]
-        \item [Transakce]
-        \item [Aktualizace]
+        \item [Čekání na připojení] Server čeká na připojení klienta
+        \item [Autorizace] Po započetí spojení server zašle klientovi uvítací zprávu a klient se musí autorizovat
+        \item [Transakce] Po úspěšné autoriazci klient provádí operace nad e-maily, po dokončení práce se odpojí příkazem QUIT
+        \item [Aktualizace] Po odpojení klienta dojde ke smazání všech e-mailů, které byly označeny ke smazání, ukončí se spojení a server čeká na dalšího klienta.
     \end{description}
-    \label{subsec:serverstatus}
     \subsubsection{Serverové odpovědi}
     \label{subsec:commresponse}
+    Server má dva stavy, kterými musí klientovi odpovídat, není přípustné, aby odpověděl jinou zprávou. Kladnou zprávou je "+OK", zápornou je "-ERR". Každá zpráva je tedy ve formátu: [+OK|-ERR] TEXT, kde TEXT je informační text související s operací (\ref{subsec:mailoperations}), která byla serveru zaslána. Může obsahovat dodatečné informace jako např. uvítací zprávu, počet e-mailů, velikost, atd.
+    \begin{description}
+        \item[+OK] Příkaz přijatý serverem byl bez problému zpracován a je zasílána kladné odpověď
+        \item[-ERR] Příkaz přijatý serverem byl s nějakou chybou zpracován špatně.
+    \end{description}
+
+    \subsubsection{Nonce}
+    \label{subsec:nonce}
+    Server po připojení klienta vygeneruje speciální nonci, která je zaslána klientovi jako součást uvítací zprávy.
+    Samotná nonce je ve tvaru: <process-ID.clock@hostname>, kde process-ID je id systémového procesu. Hodnota clock je čas, který uběhl od 1.1.1970 v sekundách. Hostname je hostname zařízení na kterém server běží.
     \subsubsection{E-mailové operace}
     \label{subsec:mailoperations}
+    Server rozumí následujícím příkazům: APOP, USER, PASS, NOOP, QUIT, STAT, LIST, RETR, DELE, RSET, UIDL a TOP. Jejich chování je předem definované \cite{P3Server}, Pokud jsou veškeré příkazy zpracovány správně, server reaguje kladnou odpovědi (\ref{subsec:commresponse}), pokud došlo při zpracovávání k chybě, vrací zápornou odpověď. Následuje vysvětlení jednotlivých příkazů:
+    \begin{description}
+        \item[APOP] Příkaz je serverem zpracován, může být použit pouze v autorizačním stavu za předpokladu, že není aktivní jiná forma autorizace, než APOP (\ref{subsec:authmethods}). Tento příkaz má vždy dva argumenty, uživatelské jméno a hashované heslo. Server na začátku komunikace pošle uvítací zprávu, která obsahuje speciální nonci, kterou klient použije, konkatenuje k ní heslo. Celý tento obsah hashuje přes md5 algoritmus a následně pošle serveru zpět jako heslo. Pokud hash sedí, klient je autorizován.
+        \item[USER] Příkaz je serverem zpracován, může být použit pouze v autorizačním stavu za předpokladu, že není aktivní jiná forma autorizace, než USER/PASS (\ref{subsec:authmethods}). Existuje pouze jediný argument, tím je uživatelské jméno. Server zkontroluje validitu uživatele, poté čeká na ověření hesla příkazem PASS. Server provádí kontrolu jména z argumentu vůči souboru s autorizačními údaji (\ref{subsec:authconfig}).
+        \item[PASS] Příkaz je serverem zpracován, může být použit pouze v autorizačním stavu za předpokladu, že není aktivní jiná forma autorizace, než USER/PASS (\ref{subsec:authmethods}). Existuje pouze jediný argukent, tím je uživatelské heslo. Příkaz může být použit pouze po kladné odpovědi z příkazu USER. Server provádí kontrolu hesla z argumentu vůči souboru s autorizačními údaji (\ref{subsec:authconfig}).
+        \item[NOOP] Příkaz je serverem zpracován,neobsahuje žádný argument. Může být použit pouze v transakčním stavu, reálně však pouze vrací kladnou odpověď, neprovádí žádné operace ani úpravy.
+        \item[QUIT] Příkaz je serverem zpracován dvěma různými možnostmi a může být použit pouze v transakčním nebo autorizačním stavu, Neobsahuje žádný argument. Pokud je QUIT příkaz použit ve stavu Autorizace (\ref{subsec:serverstatus}), dojde k odpojení klienta a návratu do stavu čekání na klienta. Pokud je příkaz QUIT použit ve stavu Transakce, musí server přejít do stavu Aktualizace, ve kterém provede smazání všech e-mailů, které byly označení ke smazání a odpojí klienta, případně uvolní veškeré alokované prostředky související s daným klientem.
+        \item[STAT] Příkaz je serverem zpracován může být použit pouze v transakčním stavu, server vrací počet zpráv, které nebyly označeny ke smazání a sumu (\ref{subsec:mailsize}) velikostí těchto e-mailů. Příkaz neobsahuje žádný argument.
+        \item[LIST] Příkaz je serverem zpracován dvěma různými možnostmi a může být použit pouze v transakčním stavu,. Pokud je u operace zadán nenulový a kladný číselný argument a pokud není. Pokud byl zadán, server vyhledá zprávu, pokud ji nalezl, zkontroluje zda nebyla označena ke smazání. Pokud nebyla, vrátí index \cite{index} zprávy a její velikost (\ref{subsec:mailsize}). Pokud nebyl zadán žádný argument, server zašle postupně jednotlivé indexy zpráv s jejich velikostmi. Po kompletním odeslání všech zpráv zašle ukončovací zprávu ve formátu: ".".
+        \item[RETR] Příkaz je serverem zpracován, může být použit pouze v transakčním stavu. Vždy musí obsahovat jeden nenulový, kladný, číselný argument. Dle tohoto argumentu vyhledá zprávu, kterou je nutné zaslat, zkontroluje zda nebyla označena ke smazání. Pokud nebyla označena ke smazání, zašle server index zprávy, její velikost. K tomu pošle obsah e-mailu i s jeho hlavičkou a ukončovací zprávu: ".".
+        \item[DELE] Příkaz je serverem zpracován, vždy musí obsahovat jeden nenulový, kladný, číselný argument, na základě kterého vyhledá index zprávy. Pokud již zpráva není označena ke smazání, dojde k označení zprávy ke smazání. Zpráva stále zůstává v e-mailovém adresáři dokud server nepřejde to stavu Aktualizace (\ref{subsec:serverstatus}).
+        \item[RSET] Příkaz je serverem zpracován, neobsahuje žádný argument. Může být použit pouze v transakčním stavu. Po jeho použití dojde k odznačení všech e-mailů, které byly označeny ke smazání. Nebudou tedy smazány.
+        \item[UIDL] Příkaz je serverem zpracován dvěma různými možnostmi a může být použit pouze v transakčním stavu,. Pokud je u operace zadán nenulový a kladný číselný argument a pokud není. Pokud byl zadán, server vyhledá zprávu, pokud ji nalezl, zkontroluje zda nebyla označena ke smazání. Pokud nebyla, vrátí index \cite{index} zprávy a její unikátní hash, který je tvořen z celé složky k e-mailovému adresáři, podsložky "/cur/", názvu e-mailu a speciální nonce, která je tvořena po připojení klienta k serveru. Pokud nebyl zadán argument, dojde k odeslání počtu zpráv, následně se zašle id každá zprávy a unikátní hash pro každou z nich, po všech zprávách se zašle ukončovací zpráva ".".
+        \item[TOP] Příkaz je serverem zpracován, může být použit pouze v transakčním stavu. Vždy musí obsahovat dva nenulové, kladné, číselné argumenty. První argument určuje index zprávy, druhý určuje počet řádků, které se ze zprávy zašlou. Dle indexu je zpráva vyhledána, zkontrolována, zda není označena ke smazání a je zaslána hlavička a tolik řádků ze samotné zprávy, kolik bylo vyžádáno v druhém argumentu.
+    \end{description}
     \subsubsection{Formy autorizace}
     \label{subsec:authmethods}
     Server umožňuje dvě formy autorizace, užitím příkazu APOP nebo kombinací příkazů USER/PASS.
     \begin{description}
-        \item [APOP] Během této formy autorizace je užita nonce (?? nonce), na základě které klient zašle serveru zašifrované heslo ve formátu: nonce.pass ("." je symbolem konkatenace řetězců). Pro šifrování je využito md5 algoritmu. Celý příkaz který klient zasílá je ve formátu: APOP name nonce.pass, kde name je uživatelské jméno a pass je heslo z autorizačního souboru (\ref{subsec:authconfig}).
-        \item [USER/PASS] Během této formy autorizace je uživatelské jméno a heslo přenášeno v čisté formě serveru, klient po připojení k serveru nejprve pošle příkaz: USER name a pokud server klienta pozná, požaduje heslo, které klient dodá příkazem: PASS pass, kde name je uživatelské jméno a pass je heslo z autorizačního souboru (\ref{subsec:authconfig}).
+        \item [APOP] Během této formy autorizace je užita nonce (\ref{subsec:nonce}) kterou server zašle příchozímu klientovi, na základě které klient zašle serveru zašifrované heslo ve formátu: nonce.pass ("." je symbolem konkatenace řetězců). Pro šifrování je využito md5 algoritmu. Celý příkaz který klient zasílá je ve formátu: APOP username nonce.pass, kde username je uživatelské jméno a pass je heslo z autorizačního souboru (\ref{subsec:authconfig}).\par
+        Ukázka komunikace (S = server, C = klient):
+        \begin{lstlisting}[frame=trBL]
+            S: +OK POP3 server ready <1896.697170952@merlin.fit.vutbr.cz>
+            C: APOP david e038880ac553077955bd7a80d4454371
+            S: +OK Pass accepted
+        \end{lstlisting}\par
+        \item [USER/PASS] Během této formy autorizace je uživatelské jméno a heslo přenášeno v čisté formě serveru, klient po připojení k serveru nejprve pošle příkaz: USER username a pokud server klienta pozná, požaduje heslo, které klient dodá příkazem: PASS pass, kde username je uživatelské jméno a pass je heslo z autorizačního souboru (\ref{subsec:authconfig}).\par
+        Ukázka komunikace (S = server, C = klient):
+        \begin{lstlisting}[frame=trBL]
+            S: +OK POP3 server ready <1896.697180952@merlin.fit.vutbr.cz>
+            C: USER david
+            S: +OK User accepted
+            C: PASS wisfit
+            S: +OK Pass accepted
+        \end{lstlisting}
     \end{description}
+
+    \subsection{Zprávy}
+    \label{subsec:mails}
+    \subsubsection{Formát zpráv}
+    \label{subsec:mailformat}
+    \subsubsection{Velikost zpráv}
+    \label{subsec:mailsize}
 
     \clearpage
     \section{Řešení projektu}
@@ -122,11 +168,11 @@
     Každý argument při spuštění má svůj význam a je nutné jej validovat. \par
 
     \begin{description}
-        \item [-h] \label{itm:help} je argument spouštějící nápovědu serveru. Je možné jej zadat s jakýmkoliv jiným argumentem, pokud je však zadán, dojde pouze k výpisu nápovědy a ukončení serveru. Tento argument je možné validně využít ve všech formách běhu serveru.
+        \item [-h] \label{itm:helpparam} je argument spouštějící nápovědu serveru. Je možné jej zadat s jakýmkoliv jiným argumentem, pokud je však zadán, dojde pouze k výpisu nápovědy a ukončení serveru. Tento argument je možné validně využít ve všech formách běhu serveru.
         V serveru je toto řešeno jako přepínač, který jakmile je aktivován, dojde k vytištění nápovědy a ukončení serveru s návratovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}).
-        \item [-c] \label{itm:authorisation}je argument, který umožňuje výběr typu autorizace v serveru. Pokud není zadán, je možné využít pouze autorizace přes příkazy APOP, pokud byl zadán, je možné využít pouze autorizace přes kombinaci příkazů USER/PASS. Tento argument je možné validně využít pouze v třetím režimu běhu.
+        \item [-c] \label{itm:authorisationparam}je argument, který umožňuje výběr typu autorizace v serveru. Pokud není zadán, je možné využít pouze autorizace přes příkazy APOP, pokud byl zadán, je možné využít pouze autorizace přes kombinaci příkazů USER/PASS. Tento argument je možné validně využít pouze v třetím režimu běhu.
         V serveru je toto řešeno jako přepínač, který jakmile je aktivován, rozhoduje povoluje jednu z těchto autorizačních metod.
-        \item [-r] \label{itm:reset}je argument provádějící reset serveru, tedy návrat do stavu před prvním spuštěním serveru, tj. dojde k načtení všech e-mailů ze speciálního konfiguračního souboru, v serveru je vždy pojmenován: mail.cfg a je umístěn v root složce serveru. Po provedení resetu se e-maily přesunou ze složky cur do new, změní se název na původní a server se tváří jako by nebyl spuštěn. Toto neplatí pro již smazané e-maily, ty nelze obnovit. Pokud je tento argument předán samostatně, dojde k resetu serveru a ukončení serveru s návratovou hodnotou \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}), pokud není zadán samostatně a je v kombinaci s třetí variantou spuštění, přejde se k dalšímu spouštění serveru. Tento argument je možné validně využít pouze v druhém a třetím režimu běhu.
+        \item [-r] \label{itm:resetparam}je argument provádějící reset serveru, tedy návrat do stavu před prvním spuštěním serveru, tj. dojde k načtení všech e-mailů ze speciálního konfiguračního souboru, v serveru je vždy pojmenován: mail.cfg a je umístěn v root složce serveru. Po provedení resetu se e-maily přesunou ze složky cur do new, změní se název na původní a server se tváří jako by nebyl spuštěn. Toto neplatí pro již smazané e-maily, ty nelze obnovit. Pokud je tento argument předán samostatně, dojde k resetu serveru a ukončení serveru s návratovou hodnotou \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}), pokud není zadán samostatně a je v kombinaci s třetí variantou spuštění, přejde se k dalšímu spouštění serveru. Tento argument je možné validně využít pouze v druhém a třetím režimu běhu. Popis implementace resetu je popsán v sekci \ref{subsec:serverreset}.
         \item [-a PATH] je argumentem určujícím cestu k souboru s autorizačními údaji uživatele serveru. Tento argument je povinný v třetím režimu běhu. Pokud není v tomto režimu běhu zadán, dojde k ukončení běhu serveru s návratovým kódem \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}), pokud je zadán, dojde k načtení a validaci souboru s autorizačními údaji.
         \item [-d PATH] je argumentem určujícím cestu k e-mailovému adresáři. Tento argument je povinný v třetím režimu běhu. Pokud není v tomto režimu běhu zadán, dojde k ukončení běhu serveru s neúspěšným návratovým kódem \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}), pokud je zadán, je cesta uložena, ověřena validita cesty a až v pozdější fázi serveru jsou testovány bližší podmínky.
         \item [-p PORT] je argumentem určujícím číslo portu, na kterém server poběží. Tento argument je povinný v třetím režimu běhu. Pokud není v tomto režimu běhu zadán, dojde k ukončení běhu serveru s návratovým kódem \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}), pokud je zadán, číslo portu je uloženo a je s ním dále pracováno až při spouštění serveru.
@@ -157,7 +203,7 @@
     \end{lstlisting}\par
     Položka NAME je jméno uživatele, položka PASS je přístupové heslo. Obě tyto položky jsou uloženy v nehashované formě.
     \subsubsection{Konfigurační soubor}
-    \label{subsec:config}
+    \label{subsec:mailconfig}
     Konfigurační soubor e-mailů obsahuje veškeré e-maily, které po ukončení serveru (\ref{subsec:sigint}) server uloží do souboru mail.cfg, který je vždy uložen ve stejné podsložce jako mailserver samotný, kde každému e-mailu jsou vytvořeny dva řádky v jednoduchém formátu:
     \lstset{frameround=fttt}
     \begin{lstlisting}[frame=trBL]
@@ -166,7 +212,9 @@
     \end{lstlisting}\par
     Položka PATH je neúplná cesta k souboru, kterou má server uloženu v paměti ve speciální struktuře mailStruct (\ref{subsec:mailstruct}). Tyto e-maily jsou vždy uloženy ve složce e-mailového adresáře, v podsložce /cur, vždy je tedy uložena pouze cesta bez /cur. \par
     Položka NAME je jméno e-mailu, které je taky uloženo v paměti ve speciální struktuře mailStruct (\ref{subsec:mailstruct}).\par
-    Tento soubor je po zapnutí server načten vždy, jsou z něj vždy načteny e-maily. Pokud dojde k resetu (\ref{subsec:reset}), provede se přesun e-mailů do daných souborů do původních složek, tedy do složky e-mailového adresáře, do podsložky /new
+    Tento soubor je po zapnutí server načten vždy, jsou z něj vždy načteny e-maily. Pokud dojde k resetu (\ref{subsec:serverreset}), provede se přesun e-mailů do daných souborů do původních složek, tedy do složky e-mailového adresáře, do podsložky /new.
+
+    \clearpage
     \subsubsection{Struktury a jejich kolekce}
     \label{subsec:threadstruct}
     Server využívá struktur dvou typů.\par
@@ -223,27 +271,30 @@
     Jednotlivé e-maily jsou pro usnadnění práce s nimi uloženy v jednom globálním listu nazvaném mailList. List je provázaný seznam prvků umožňující nám snadnou iteraci skrze jednotlivé prvky.
     \subsubsection{Implementace programu}
     \label{subsec:serverimplementation}
-    Server je implementován jako TCP server, který po spuštění provede kontrolu argumentů a jejich rozparsování za pomocí funkcí: \texttt{checkParams()} a \texttt{parseParams()}. Pokud nejsou správně zadány parametry odpovídající jednomu ze tří běhů aplikace (\ref{subsec:makeandrun}), dojde k ukončení programu s chybovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}), V opačném případě se pokračuje v běhu programu. Dojde ke kontrole parametrů \textsc{help} (\ref{itm:help}) a \textsc{reset} (\ref{itm:reset}). V dalším kroku se provede validace souboru s autorizačními údaji uživatele serveru (\ref{subsec:authconfig}). Pokud soubor není v pořádku, server vrací návratový kód \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}). Po úspěšné kontrole všech těchto parametrů se začne inicializovat server, nejprve se vytvoří \textsc{serverSocket} za pomocí funkce \texttt{socket()}, následně je tento socket nastaven funkcí \texttt{setsockopt()}. Pokud je vše v pořádku, server vytvoří \textsc{clientaddr} a \textsc{serveraddr} proměnné typu \textit{\textsc{sockaddr\_in}}, které se naplní vhodnými hodnotami, jako typ spojení a číslo portu. Poté je za pomocí funcke \texttt{bind()} socket nabindován a začne poslouchat na daném socketu s názvem \textsc{serverSocket}.
+    Server je implementován jako TCP server, který po spuštění provede kontrolu argumentů a jejich rozparsování za pomocí funkcí: \texttt{checkParams()} a \texttt{parseParams()}. Pokud nejsou správně zadány parametry odpovídající jednomu ze tří běhů aplikace (\ref{subsec:makeandrun}), dojde k ukončení programu s chybovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}), V opačném případě se pokračuje v běhu programu. Dojde ke kontrole parametrů \textsc{help} (\ref{itm:helpparam}) a \textsc{reset} (\ref{itm:resetparam}). V dalším kroku se provede validace souboru s autorizačními údaji uživatele serveru (\ref{subsec:authconfig}). Pokud soubor není v pořádku, server vrací návratový kód \textbf{EXIT\_FAILURE} (\ref{itm:exitfailure}). Po úspěšné kontrole všech těchto parametrů se začne inicializovat server, nejprve se vytvoří \textsc{serverSocket} za pomocí funkce \texttt{socket()}, následně je tento socket nastaven funkcí \texttt{setsockopt()}. Pokud je vše v pořádku, server vytvoří \textsc{clientaddr} a \textsc{serveraddr} proměnné typu \textit{\textsc{sockaddr\_in}}, které se naplní vhodnými hodnotami, jako typ spojení a číslo portu. Poté je za pomocí funcke \texttt{bind()} socket nabindován a začne poslouchat na daném socketu s názvem \textsc{serverSocket}.
     Pro chování TCP serveru je využit nekonečný \textsc{while} cyklus na jehož počátku dojde k přijetí spojení funkcí \texttt{accept()}, následně dojde k vytvoření a naplnění struktury \textit{\textsc{threadStruct}}, následně dojde k vytvoření vlákna a přístupu do funkce \texttt{clientThread()}. Pokud došlo k chybě při přijetí spojení, cyklus se ukončí a program končí. Pokud ne, přechází se už k funkčnosti samotného POP3 serveru, která je podrobně řešena v sekci \ref{subsec:pop3implementation}
     \subsubsection{Implementace logiky POP3}
     \label{subsec:pop3implementation}
     Ve funkci \texttt{clientThread()} se provádí příjem jednotlivých zpráv, je zde tedy druhý nekonečný cyklus (tentokráte \textsc{for}), který doplňuje logiku serverového chování. Při přijetí spojení se klientovi okamžitě zašle nonce (\ref{subsec:nonce}), na základě které klient ví, že je připojen a odpovídá na ni e-mailovými operacemi. Nyní je server v autorizačním stavu (\ref{subsec:serverstatus}). V tomto momentě může klient zasílat pouze APOP, USER, PASS nebo QUIT příkazy. Funkce je vysvětlena v sekci \ref{subsec:mailoperations}. Dokud se klient neautorizuje korektními údaji, nemůže přejít do dalšího, transakčního (\ref{subsec:serverstatus}), stavu. Po úspěšné autorizaci klienta dojde k výhradnému uzamčení e-mailového adresáře funkcí \texttt{lockMaildir()}, může jej tedy využít pouze daný klient, nikdo jiný. Pokud se autorizace nezdaří, neobdrží přístup a musí se autorizovat znovu. Celou autorizaci řeší funkce \texttt{authorizeUser()}, která vrací hodnotu \textsc{BOOL}, ta je uložena do struktury daného vlákna (\ref{subsec:threadstruct}) pro každého klienta zvlášť. \par
-    Po uzamčení e-mailového adresáře dojde k vytvoření listu e-mailů pomocí funkce \texttt{createListFromMails()} z e-mailů v adresáři /new a pokud se nejedná o první spuštění serveru, musí být přítomen i konfigurační soubor e-mailu obsahující starší e-maily, které byly ve složce /cur, které si také načte funkcí \texttt{loadMailsFromCfg()}. Během tohoto tvoření listu jsou e-maily čteny, je zjišťována jejich velikost funkcí \texttt{getFileSize()}(?? - reference na size e-mailů) a zároveň, pokud se jedná o e-maily ve složce /new, přesouvány do složky /cur. Po dokončení této operace přestoupí server do transakčního stavu přes funkci \texttt{executeMailServer()}, která řeší logiku celého POP3 serveru.\par
-    Tato funkce obdrží vždy operaci, která má být vykonávána a zprávu, která byla od klienta přijata, tu zpracuje a na základě ní odešle adekvátní reakci. V této fázi může přijímat pouze příkazy: LIST, NOOP, STAT, RETR, DELE, RSET, UIDL, TOP a QUIT (\ref{subsec:mailoperations}). Každá z těchto operací má svou vlastní C++ funkci, přesněji: \texttt{listOperation()}, \texttt{noopOperation()}, \texttt{statOperation()}, \texttt{retrOperation()}, \texttt{deleOperation()}, \texttt{rsetOperation()}, \texttt{uidlOperation()}, \texttt{topIndexOperation()}, \texttt{quitOperation()}, výjimkou jsou operace LIST, UIDL. Tyto příkazy mají dvě funkce, protože jsou rozlišeny podle počtu argumentů. Jedná se tedy o funkce: \texttt{listIndexOperation()} a \texttt{uidlIndexOperation()}. Implementace těchto funkcí je řešena dle specifikace RFC (?? - reference na RFC POP3), které je věnována sekce \ref{subsec:mailoperation}.\par
+    Po uzamčení e-mailového adresáře dojde k vytvoření listu e-mailů pomocí funkce \texttt{createListFromMails()} z e-mailů v adresáři /new a pokud se nejedná o první spuštění serveru, musí být přítomen i konfigurační soubor e-mailu obsahující starší e-maily, které byly ve složce /cur, které si také načte funkcí \texttt{loadMailsFromCfg()}. Během tohoto tvoření listu jsou e-maily čteny, je zjišťována jejich velikost funkcí \texttt{getFileSize()}(\ref{subsec:mailsize}) a zároveň, pokud se jedná o e-maily ve složce /new, přesouvány do složky /cur. Po dokončení této operace přestoupí server do transakčního stavu přes funkci \texttt{executeMailServer()}, která řeší logiku celého POP3 serveru.\par
+    Tato funkce obdrží vždy operaci, která má být vykonávána a zprávu, která byla od klienta přijata, tu zpracuje a na základě ní odešle adekvátní reakci. V této fázi může přijímat pouze příkazy: LIST, NOOP, STAT, RETR, DELE, RSET, UIDL, TOP a QUIT (\ref{subsec:mailoperations}). Každá z těchto operací má svou vlastní C++ funkci, přesněji: \texttt{listOperation()}, \texttt{noopOperation()}, \texttt{statOperation()}, \texttt{retrOperation()}, \texttt{deleOperation()}, \texttt{rsetOperation()}, \texttt{uidlOperation()}, \texttt{topIndexOperation()}, \texttt{quitOperation()}, výjimkou jsou operace LIST, UIDL. Tyto příkazy mají dvě funkce, protože jsou rozlišeny podle počtu argumentů. Jedná se tedy o funkce: \texttt{listIndexOperation()} a \texttt{uidlIndexOperation()}. Implementace těchto funkcí je řešena dle specifikace RFC 1939 (\cite{P3Server}), které je věnována sekce \ref{subsec:mailoperations}.\par
     Klient komunikuje s klientem tak dlouho, dokud klient nezašle příkaz QUIT, načež server přejde do stavu aktualizace, kdy dojde ke smazání všech e-mailů, které byly označeny ke smazání, v e-mailovém adresáři. Tento stav je prováděn funkcí \texttt{quitOperation()}, která provede smazání všech e-mailů funkcí \texttt{deleteMarkedForDeletion()}. Tato funkce zkontroluje všechny e-maily v listu a ty které byly označeny příznakem toDelete (\ref{subsec:mailstruct}), smaže.\par
     Pokud smazání proběhlo v pořádku, server pošle klientovi zprávu obsahující počet e-mailů, které v e-mailovém adresáři zůstali a odpojí jej. Pokud došlo k problému při mazání, server na tento fakt upozorní klienta a taktéž jej odpojí.\par
     Pokud klient nebyl před zasláním příkazu QUIT v transakčním stavu, musel být ve stavu autorizačním, poté dojde k použití stejné funkce, jelikož ale nebyl list naplněn, žádný e-mail se nesmaže a je klient odpojen.
     Veškerá vlákna klientů se mažou a uvolňuji z paměti až při ukončení serveru (\ref{subsec:sigint}).
+    \subsubsection{Reset serveru}
+    \label{subsec:serverreset}
+    Reset serveru do původního stavu před prvním spuštěním probíhá za využití souboru mail.cfg, který je uložen ve stejné složce jako je samotný server. Jeho obsah je zmíněn v sekci \ref{subsec:mailconfig}. Obsah tohoto souboru je načten za pomocí ifstream, což je třída pracující nad soubory a jejich obsahy, a veškeré e-maily, jejich názvy v tomto souboru jsou, jsou přesunuty do původních pozic, ve kterých byly. Toto neplatí pro e-maily, které již byly smazány. Celý tento proces obstarává funkce \texttt{resetMail()}, která opravdu nedělá nic než načtení souboru, postupné načítání názvů a složek jednotlivých e-mailů a jejich přesouvání z /cur do /new jejich e-mailových adresářů.
     \subsubsection{Implementace ukončení běhu serveru}
     \label{subsec:sigint}
-    Ukončení běhu serveru je možné pouze v případě, že je serveru předán signál \textbf{SIGINT}. Takový signál je signál označený jako vyvolaný z klávesnice. Je to ukončující signál, jeho účelem je terminovat proces, potažmo server. Lze jej vyvolat z klávesnice stisknutím kláves: CTRL\^{}C. Při takovémto ukončení dojde k odpojení veškerých klientů přes funkci \texttt{closeThreads()}, korektně se uloží veškeré informace o e-mailech do konfiguračního souboru (\ref{subsec:config}) s e-maily užitím funkce \texttt{createMailCfg()}, uvolní se veškerá struktury z paměti za užití funkce \texttt{disposeList()} a server se ukončí s návratovým kódem \textbf{EXIT\_SUCCESS}. (\ref{itm:exitsuccess}). Toto vše je nutné pro korektní ukončení programu a následné bezproblémové spuštění při opakovaném spuštění serveru.
+    Ukončení běhu serveru je možné pouze v případě, že je serveru předán signál \textbf{SIGINT}. Takový signál je signál označený jako vyvolaný z klávesnice. Je to ukončující signál, jeho účelem je terminovat proces, potažmo server. Lze jej vyvolat z klávesnice stisknutím kláves: CTRL\^{}C. Při takovémto ukončení dojde k odpojení veškerých klientů přes funkci \texttt{closeThreads()}, korektně se uloží veškeré informace o e-mailech do konfiguračního souboru (\ref{subsec:mailconfig}) s e-maily užitím funkce \texttt{createMailCfg()}, uvolní se veškerá struktury z paměti za užití funkce \texttt{disposeList()} a server se ukončí s návratovým kódem \textbf{EXIT\_SUCCESS} (\ref{itm:exitsuccess}). Toto vše je nutné pro korektní ukončení programu a následné bezproblémové spuštění při opakovaném spuštění serveru.
     \clearpage
     \section{Neimplementované součásti}
     \label{sec:nonimplementedsections}
-    Nebyla implementována součást automatického odhlášení ze sekce 3, RFC 1939 \cite{POP3}.
+    Nebyla implementována součást automatického odhlášení ze sekce 3, RFC 1939 \cite{P3Server}.
     \section{Implementovaná rozšíření}
     \label{sec:implementedsections}
-    Proběhla implementace příkazu TOP dle sekce 7, RFC 1939 \cite{POP3}.
+    Proběhla implementace příkazu TOP dle sekce 7, RFC 1939 \cite{P3Server}.
     \bibliographystyle{plain}
     \bibliography{references}
 \end{document}
