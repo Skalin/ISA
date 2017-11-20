@@ -54,7 +54,7 @@ void printHelp() {
 	cout << "Task name: ISA - POP3 server" << endl;
 	cout << "Subject: ISA (2017/2018)\r\n\r\n" << endl;
 	cout << "Description:" << endl;
-	cout << "\tPOP3 Server able to handle single user. Handles standard POP3 operations, like RETR, TOP, etc. More information can be found in documentation.\r\n\r\n" <<  endl;
+	cout << "\tPOP3 Server able to handle single user, created according to RFC 1939 specifiaction. Handles standard POP3 operations: APOP, USER, PASS, QUIT, LIST, STAT, UIDL, TOP, RETR, RSET, DELE, NOOP. More information can be found in documentation.\r\n\r\n" <<  endl;
 	cout << "Usage:" << endl;
 	cout << "\t./popser [-h] [-a PATH] [-c] [-p PORT] [-d PATH] [-r]" << endl;
 	cout << "Arguments:" << endl;
@@ -145,7 +145,7 @@ bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset
 		}
 	}
 
-	if (argc > 10) {
+	if (argc > 10 || (reset && argc > 3 && (!mailStatus || !portStatus || !usersStatus))) {
 		throwException("ERROR: Wrong amount of arguments!");
 	}
 
