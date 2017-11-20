@@ -68,23 +68,6 @@ void printHelp() {
 
 
 /*
- * Function checks if amount of params is ok
- *
- * @param int argc amount of arguments -1
- * @returns bool true if params were alright, false otherwise
- */
-bool checkParams(int argc) {
-
-	// TODO
-	/*if ((argc > 1 && argc < 7) || argc > 9) {
-		throwException("ERROR: Wrong amount of arguments.");
-	}*/
-	
-	return true;
-}
-
-
-/*
  * Function parses params and stores their value in arguments
  *
  * @param int argc amount of arguments
@@ -98,30 +81,57 @@ bool checkParams(int argc) {
  */
 bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset, string &usersFile, string &mailDir, int &port) {
 	int c;
-	// TODO osetreni argumentu
+	bool usersStatus = false;
+	bool portStatus = false;
+	bool mailStatus = false;
+	bool isHashedStatus = false;
+	bool resetStatus = false;
+	bool helpStatus = false;
+
 
 	while ((c = getopt(argc, argv, ":hcra:p:d:")) != -1) {
 		switch (c) {
 			case 'h':
+				if (helpStatus) {
+					throwException("ERROR: Duplicate usage of -h argument!");
+				}
 				help = true;
+				helpStatus = true;
 				break;
 			case 'a':
+				if (usersStatus) {
+					throwException("ERROR: Duplicate usage of -a argument!");
+				}
 				usersFile = optarg;
+				usersStatus = true;
 				break;
 			case 'c':
+				if (isHashedStatus) {
+					throwException("ERROR: Duplicate usage of -c argument!");
+				}
 				isHashed = false;
+				isHashedStatus = true;
 				break;
 			case 'p':
-				port = atoi(optarg);
-				if (port < 0 || port > 65535) {
-					throwException("ERROR: Wrong range of port");
+				if (portStatus) {
+					throwException("ERROR: Duplicate usage of -p argument!");
 				}
+				port = atoi(optarg);
+				portStatus = true;
 				break;
 			case 'd':
+				if (mailStatus) {
+					throwException("ERROR: Duplicate usage of -d argument!");
+				}
 				mailDir = optarg;
+				mailStatus = true;
 				break;
 			case 'r':
+				if (resetStatus) {
+					throwException("ERROR: Duplicate usage of -r argument!");
+				}
 				reset = true;
+				resetStatus = true;
 				break;
 			case ':':
 				throwException("ERROR: Wrong arguments.");
@@ -134,18 +144,11 @@ bool parseParams(int argc, char *argv[], bool &help, bool &isHashed, bool &reset
 				return false;
 		}
 	}
-/*
-	if (reset) {
-		if (argc > 3) {
-			if (mailDir == "" || usersFile == "" || !port) {
-				throwException("ERROR: Wrong arguments");
-			}
-		}
-	} else {
-		if (mailDir == "" || usersFile == "" || !port) {
-			throwException("ERROR: Wrong arguments");
-		}
-	}*/
+
+	if (argc > 10) {
+		throwException("ERROR: Wrong amount of arguments!");
+	}
+
 	return true;
 }
 
@@ -278,11 +281,7 @@ string generatePidTimeStamp() {
 	hostname[511] = '\0';
 	gethostname(hostname,512);
 	host = gethostbyname(hostname);
-	string pidTimeStamp = "<"+pidStr+"."+getStringTime()+"@"+host->h_name+">";
-	if (!isPidUnique(pidTimeStamp)) {
-		pidTimeStamp = generatePidTimeStamp();
-	}
-	return (pidTimeStamp);
+	return ("<"+pidStr+"."+getStringTime()+"@"+host->h_name+">");
 }
 
 
@@ -294,24 +293,6 @@ string generatePidTimeStamp() {
  */
 string getWorkingDirectory(char *argv[]) {
 	return returnSubstring(string(argv[0]), "popser", false);
-}
-
-
-/*
- * Function checks the uniqueness of pidTimeStamp, if the pidTimeStamp is not unique, it will generate new one and store it in correct thread
- *
- * @param string PTS pidTimeStamp string
- * @returns true if pidTimeStamp is unique, false otherwise
- */
-bool isPidUnique(string pidTimeStamp) {
-	bool status = true;
-	for(std::vector<threadStruct>::iterator it = threads.begin(); it != threads.end(); ++it) {
-		if (it->pidTimeStamp == pidTimeStamp) {
-			it->pidTimeStamp = generatePidTimeStamp();
-			status = false;
-		}
-	}
-	return status;
 }
 
 
@@ -1294,30 +1275,22 @@ void *clientThread(void *tS) {
 	threads.push_back(*tParam);
 
 	tParam->pidTimeStamp = generatePidTimeStamp();
-	clock_t clock1 = clock();
-	double timeout = 6000.00;
 
 	sendResponse(tParam->commSocket, false, "POP3 server ready "+tParam->pidTimeStamp);
 	for (;;) {
-		if ((double) ((clock() - clock1) / CLOCKS_PER_SEC) <= timeout) {
-			if (((int) recv(tParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
-				break;
-			} else {
-				clock1 = clock();
-				int op = 0;
-				if ((op = getOperation(receivedMessage)) != 0) {
-					clock1 = clock();
-					if (tParam->authorized) {
-						executeMailServer(tParam, op, receivedMessage);
-					} else {
-						tParam->authorized = authorizeUser(op, tParam, receivedMessage, tParam->isHashed);
-					}
-				} else {
-					sendResponse(tParam->commSocket, true, "invalid command");
-				}
-			}
+		if (((int) recv(tParam->commSocket, receivedMessage, 1024, 0)) <= 0) {
+			break;
 		} else {
-			sendMessage(tParam->commSocket, "You have been logged out after "+to_string(timeout)+" seconds.");
+			int op = 0;
+			if ((op = getOperation(receivedMessage)) != 0) {
+				if (tParam->authorized) {
+					executeMailServer(tParam, op, receivedMessage);
+				} else {
+					tParam->authorized = authorizeUser(op, tParam, receivedMessage, tParam->isHashed);
+				}
+			} else {
+				sendResponse(tParam->commSocket, true, "invalid command");
+			}
 		}
 	}
 	return nullptr;
@@ -1325,7 +1298,7 @@ void *clientThread(void *tS) {
 
 
 /*
- * Function resets mail directory to default settings - moves all mails from cur to previous folders, does not work with deleted mails
+ * Function resets mail directory to default settings - moves all mails from cur to previous folders, does not restore deleted mails
  *
  */
 void resetMail() {
@@ -1423,7 +1396,7 @@ int main(int argc, char *argv[]) {
 	bool isHashed = true;
 
 	// params
-	if (!checkParams(argc) || !parseParams(argc, argv, help, isHashed, reset, usersFile, mailDir, port)) {
+	if (!parseParams(argc, argv, help, isHashed, reset, usersFile, mailDir, port)) {
 		throwException("ERROR: Wrong arguments.");
 	}
 
